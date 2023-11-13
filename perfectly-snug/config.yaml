@@ -12,8 +12,8 @@ arch:
 options:
   topper_ip_address: null
   bedtime_mode_helper: input_boolean.bedtime_mode
-  weekday_wake_up_time_helper: input_datetime.wake_up_time
-  weekend_wake_up_time_helper: input_datetime.weekend_wake_up_time_alarm_time
+  weekday_wake_up_time_helper: input_datetime.weekday_wake_up_time
+  weekend_wake_up_time_helper: input_datetime.weekend_wake_up_time
   play_time_mode_helper: input_boolean.play_time
   nap_time_mode_helper: input_boolean.nap_time
   weeknight_start_time: "21:00"
