@@ -413,6 +413,7 @@ async def snuggler_update():
             logger.critical(traceback.print_exc())
             logger.critical(f'Exception: {type(e)}: {e}')
 
+        logger.info(f"Waiting {settings['update_interval_secs']:,} seconds to check again...")
         await asyncio.sleep(settings['update_interval_secs'])
 
 
