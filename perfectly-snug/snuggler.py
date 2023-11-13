@@ -1,4 +1,5 @@
 import json
+import yaml
 from loguru import logger
 import sys
 import asyncio
@@ -16,9 +17,11 @@ try:
     with open('./data/options.json') as json_file:
         settings = json.load(json_file)
 except FileNotFoundError:
-    settings = {
-        'topper_ip_address': '192.168.1.104'
-    }
+    with open('./perfectly-snug/config.yaml') as yaml_file:
+        full_config = yaml.safe_load(yaml_file)
+
+    settings = full_config['options']
+    settings['topper_ip_address'] = '192.168.1.104'
 
 # reset the logging level from DEBUG by default
 logger.remove()
@@ -166,11 +169,11 @@ async def change_end_time(websocket, wake_up_time_dict, bedtime_mode_on, bedtime
         if not update_start_time and orig_r_msg == r_msg and now().hour == 16 and now().minute < 14:
             logger.info(f"{now().strftime('%H:%M')} -- Time to reset start times")
             # time to reset the start time
-            r_msg['Sched1StartH'] = '21'
-            r_msg['Sched1StartM'] = '0'
+            r_msg['Sched1StartH'] = str(parse_dt(settings['weeknight_start_time']).hour)
+            r_msg['Sched1StartM'] = str(parse_dt(settings['weeknight_start_time']).minute)
 
-            r_msg['Sched2StartH'] = '22'
-            r_msg['Sched2StartM'] = '0'
+            r_msg['Sched2StartH'] = str(parse_dt(settings['weekendnight_start_time']).hour)
+            r_msg['Sched2StartM'] = str(parse_dt(settings['weekendnight_start_time']).minute)
 
             update_start_time = True
 
@@ -288,8 +291,8 @@ async def recv_msg(websocket, m_type=None):
 
 async def get_wake_up_times():
 
-    weekday_url = f'{base_url}/states/input_datetime.wake_up_time'
-    weekend_url = f'{base_url}/states/input_datetime.weekend_wake_up_time_alarm_time'
+    weekday_url = f"{base_url}/states/{settings['weekday_wake_up_time_helper']}"
+    weekend_url = f"{base_url}/states/{settings['weekend_wake_up_time_helper']}"
 
     headers = {
         'Authorization': f'Bearer {token}',
@@ -311,7 +314,7 @@ async def get_wake_up_times():
 
 async def get_bedtime_mode():
 
-    url = f'{base_url}/states/input_boolean.bedtime_mode'
+    url = f"{base_url}/states/{settings['bedtime_mode_helper']}"
 
     headers = {
         'Authorization': f'Bearer {token}',
@@ -326,7 +329,7 @@ async def get_bedtime_mode():
 
 
 
-async def snuggler_update(instruction=None):
+async def snuggler_update():
 
     # last_run_file_name = 'last_run_status.json'
 
@@ -359,7 +362,7 @@ async def snuggler_update(instruction=None):
 
             bedtime_mode = await get_bedtime_mode()
 
-            bedtime_mode_triggered = (now() - parse_dt(bedtime_mode['last_changed'])).total_seconds() < 450
+            bedtime_mode_triggered = (now() - parse_dt(bedtime_mode['last_changed'])).total_seconds() < settings['update_interval_secs'] + (settings['update_interval_secs'] / 2)
             bedtime_mode_on = bedtime_mode['state'] == 'on'
 
             # bedtime_mode_last_changed = parse_dt(max(bedtime_mode['last_changed'], bedtime_mode['last_updated']))
@@ -380,7 +383,6 @@ async def snuggler_update(instruction=None):
                 'last_bedtime_mode_on': bedtime_mode_on,
             }
 
-            # we repeat every 5 minutes (300 seconds)
             # check if the wake up time has been updated
             need_to_update = False
             if last_weekday_time.hour != wake_up_time_dict['weekday'].hour or last_weekday_time.minute != wake_up_time_dict['weekday'].minute:  # noqa: E501
@@ -391,7 +393,7 @@ async def snuggler_update(instruction=None):
                 logger.info(f"Weekend wakeup time has been changed: {last_weekend_time} to {wake_up_time_dict['weekend']}")
                 need_to_update = True
 
-            elif now().hour == 16 and now().minute < 14:
+            elif now().hour == 16 and now().minute < settings['update_interval_secs'] * 3:
                 logger.info('Time to reset start times')
                 need_to_update = True
 
@@ -411,7 +413,7 @@ async def snuggler_update(instruction=None):
             logger.critical(traceback.print_exc())
             logger.critical(f'Exception: {type(e)}: {e}')
 
-        await asyncio.sleep(60)
+        await asyncio.sleep(settings['update_interval_secs'])
 
 
 if __name__ == "__main__":

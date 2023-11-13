@@ -1,6 +1,6 @@
 name: "Perfectly Snug"
 description: "Control Perfectly Snug Topper"
-version: "1.0.1"
+version: "1.0.4"
 slug: "perfectly_snug"
 init: false
 arch:
@@ -11,7 +11,22 @@ arch:
   - i386
 options:
   topper_ip_address: null
+  bedtime_mode_helper: input_boolean.bedtime_mode
+  weekday_wake_up_time_helper: input_datetime.wake_up_time
+  weekend_wake_up_time_helper: input_datetime.weekend_wake_up_time_alarm_time
+  play_time_mode_helper: input_boolean.play_time
+  nap_time_mode_helper: input_boolean.nap_time
+  weeknight_start_time: "21:00"
+  weekendnight_start_time: "22:00"
+  update_interval_secs: 60
 schema:
-  topper_ip_address: str
+  topper_ip_address: match(^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$)
+  bedtime_mode_helper: str
+  weekday_wake_up_time_helper: str
+  weekend_wake_up_time_helper: str
+  play_time_mode_helper: str
+  nap_time_mode_helper: str
+  weeknight_start_time: match(^(?:[0-1]\d|2[0-3]):[0-5]\d$)
+  weekendnight_start_time: match(^(?:[0-1]\d|2[0-3]):[0-5]\d$)
+  update_interval_secs: int(30, 3600)
 homeassistant_api: true
-# hassio_api: true
