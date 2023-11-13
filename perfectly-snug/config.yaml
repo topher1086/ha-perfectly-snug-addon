@@ -1,0 +1,17 @@
+name: "Perfectly Snug"
+description: "Control Perfectly Snug Topper"
+version: "1.0.1"
+slug: "perfectly_snug"
+init: false
+arch:
+  - aarch64
+  - amd64
+  - armhf
+  - armv7
+  - i386
+options:
+  topper_ip_address: null
+schema:
+  topper_ip_address: str
+homeassistant_api: true
+# hassio_api: true
