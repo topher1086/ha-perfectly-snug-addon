@@ -1,4 +1,4 @@
 # https://developers.home-assistant.io/docs/add-ons/repository#repository-configuration
-name: Chris's Home Assistant add-on repository
+name: Chris's Home Assistant Perfectly Snug Addon
 url: 'https://github.com/topher1086/ha-perfectly-snug-addon'
 maintainer: Chris Christensen
