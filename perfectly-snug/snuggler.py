@@ -13,6 +13,8 @@ from dateutil.parser import parse as parse_dt
 
 from requests import get
 
+in_addon = not __file__.startswith('/workspaces/')
+
 try:
     with open('./data/options.json') as json_file:
         settings = json.load(json_file)
@@ -25,14 +27,12 @@ except FileNotFoundError:
 
 # reset the logging level from DEBUG by default
 logger.remove()
-logger.add(sys.stderr, level=settings.get("LOGLEVEL", "INFO"))
+logger.add(sys.stderr, level=settings['logging_level'] if in_addon else 'DEBUG')
 
-in_addon = not __file__.startswith('/workspaces/')
 base_url = 'http://supervisor/core/api' if in_addon else 'http://localhost:8123/api'
 
-logger.info(f'Base URL: {base_url}')
+logger.debug(f'Base URL: {base_url}')
 
-# logger.info(f"Token: {environ.get('SUPERVISOR_TOKEN')}")
 if in_addon:
     token = environ.get('SUPERVISOR_TOKEN')
 else:
@@ -59,7 +59,7 @@ def get_new_tx_id():
 
 async def change_end_time(websocket, wake_up_time_dict, bedtime_mode_on, bedtime_mode_triggered):
 
-    logger.info(f'Sending: {request_side}')
+    logger.debug(f'Sending: {request_side}')
     await websocket.send(request_side)
 
     r_msg = await recv_msg(websocket)
@@ -67,7 +67,7 @@ async def change_end_time(websocket, wake_up_time_dict, bedtime_mode_on, bedtime
 
     for side in ['R', 'L']:
 
-        logger.info(f'Side {side} -- Checking settings')
+        logger.debug(f'Side {side} -- Checking settings')
 
         # check the current running status
         for _ in range(5):
@@ -80,16 +80,16 @@ async def change_end_time(websocket, wake_up_time_dict, bedtime_mode_on, bedtime
             }
 
             msg = json.dumps(msg_s, separators=(',', ':'))
-            # logger.info(f'Sending message: {msg}')
+            # logger.debug(f'Sending message: {msg}')
 
             await websocket.send(msg)
 
-            # logger.info('Msg sent')
+            # logger.debug('Msg sent')
             # await asyncio.sleep(2)
 
             r_msg = await recv_msg(websocket, 'overnight')
 
-            # logger.info(f'Msg received: {r_msg}')
+            # logger.debug(f'Msg received: {r_msg}')
 
             if r_msg['sideID'] == side:
                 break
@@ -98,7 +98,7 @@ async def change_end_time(websocket, wake_up_time_dict, bedtime_mode_on, bedtime
 
         is_running = False
         if r_msg['Running'] == 1:
-            logger.info(f'Side {side} -- is running')
+            logger.debug(f'Side {side} -- is running')
             is_running = True
 
         # get the schedule settings now
@@ -112,16 +112,16 @@ async def change_end_time(websocket, wake_up_time_dict, bedtime_mode_on, bedtime
             }
 
             msg = json.dumps(msg_s, separators=(',', ':'))
-            # logger.info(f'Sending message: {msg}')
+            # logger.debug(f'Sending message: {msg}')
 
             await websocket.send(msg)
 
-            # logger.info('Msg sent')
+            # logger.debug('Msg sent')
             # await asyncio.sleep(2)
 
             r_msg = await recv_msg(websocket, 'schedule')
 
-            # logger.info(f'Msg received: {r_msg}')
+            # logger.debug(f'Msg received: {r_msg}')
 
             if r_msg['sideID'] == side:
                 break
@@ -180,7 +180,7 @@ async def change_end_time(websocket, wake_up_time_dict, bedtime_mode_on, bedtime
         if orig_r_msg != r_msg:
             logger.info(f'Side {side} -- Sending message to update schedule')
             msg = json.dumps(r_msg, separators=(',', ':'))
-            # logger.info(f'Sending message: {msg}')
+            # logger.debug(f'Sending message: {msg}')
 
             await websocket.send(msg)
             await asyncio.sleep(5)
@@ -198,16 +198,16 @@ async def change_end_time(websocket, wake_up_time_dict, bedtime_mode_on, bedtime
                 }
 
                 msg = json.dumps(msg_s, separators=(',', ':'))
-                # logger.info(f'Sending message: {msg}')
+                # logger.debug(f'Sending message: {msg}')
 
                 await websocket.send(msg)
 
-                # logger.info('Msg sent')
+                # logger.debug('Msg sent')
                 # await asyncio.sleep(2)
 
                 r_msg = await recv_msg(websocket, 'overnight')
 
-                # logger.info(f'Msg received: {r_msg}')
+                # logger.debug(f'Msg received: {r_msg}')
 
                 if r_msg['sideID'] == side:
                     break
@@ -219,7 +219,7 @@ async def change_end_time(websocket, wake_up_time_dict, bedtime_mode_on, bedtime
                 r_msg['Running'] = 0
 
                 msg = json.dumps(r_msg, separators=(',', ':'))
-                # logger.info(f'Sending message: {msg}')
+                # logger.debug(f'Sending message: {msg}')
 
                 await websocket.send(msg)
                 await asyncio.sleep(5)
@@ -273,14 +273,14 @@ def check_msg(m, m_type=None):
 async def recv_msg(websocket, m_type=None):
     for _ in range(10):
         try:
-            # logger.info('Waiting for websocket message')
-            # logger.info(f'Websocket state: {websocket.state}')
-            # logger.info(f'WS type: {type(websocket)}')
-            # logger.info(f'WS recv type: {type(websocket.recv())}')
+            # logger.debug('Waiting for websocket message')
+            # logger.debug(f'Websocket state: {websocket.state}')
+            # logger.debug(f'WS type: {type(websocket)}')
+            # logger.debug(f'WS recv type: {type(websocket.recv())}')
             # m = await asyncio.wait_for(websocket.recv(), timeout=5)
             m = await websocket.recv()
             last_msg_rec = json.loads(m)
-            logger.info(f'Last msg received: {last_msg_rec}')
+            logger.debug(f'Last msg received: {last_msg_rec}')
 
             if check_msg(last_msg_rec, m_type):
                 return last_msg_rec
@@ -323,8 +323,6 @@ async def get_bedtime_mode():
 
     r = get(url, headers=headers)
 
-    logger.info(r)
-
     return r.json()
 
 
@@ -335,7 +333,7 @@ async def snuggler_update():
 
     snuggler_url = f"ws://{settings['topper_ip_address']}/PSWS"
 
-    # logger.info(f'Snuggler instruction: {instruction}')
+    # logger.debug(f'Snuggler instruction: {instruction}')
 
     # get the last run time
     # try:
@@ -353,7 +351,7 @@ async def snuggler_update():
 
         try:
 
-            logger.info('Checking status...')
+            logger.debug('Checking status...')
 
             # last_run_time = parse_dt(last_run_status['timestamp'])
             last_weekday_time = last_run_status['last_weekday_time']
@@ -368,7 +366,7 @@ async def snuggler_update():
             # bedtime_mode_last_changed = parse_dt(max(bedtime_mode['last_changed'], bedtime_mode['last_updated']))
 
             wake_up_time_dict = await get_wake_up_times()
-            # logger.info(f'Wake up time dict: {wake_up_time_dict}')
+            # logger.debug(f'Wake up time dict: {wake_up_time_dict}')
 
             # weekday_wake_up_time_last_changed = parse_dt(max(wake_up_time_dict['weekday_j']['last_changed'], wake_up_time_dict['weekday_j']['last_updated']))  # noqa: E501
             # weekend_wake_up_time_last_changed = parse_dt(max(wake_up_time_dict['weekend_j']['last_changed'], wake_up_time_dict['weekend_j']['last_updated']))  # noqa: E501
@@ -404,7 +402,7 @@ async def snuggler_update():
                     await asyncio.gather(change_end_time(ws, wake_up_time_dict, bedtime_mode_on, bedtime_mode_triggered))
 
             else:
-                logger.info('Wakeup times have not changed, not updating')
+                logger.debug('Wakeup times have not changed, not updating')
 
             # with open(last_run_file_name, 'w') as f:
             #     json.dump(last_run_status, f)
