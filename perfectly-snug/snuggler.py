@@ -41,9 +41,11 @@ else:
 request_side = '{"Comm":"Status","sideID":"?","Val":"Side"}'
 tx_id = 1
 
+tz = 'America/Chicago'
+
 def now():  # sourcery skip: aware-datetime-for-utc
     utc_now = pytz.utc.localize(datetime.utcnow())
-    return utc_now.astimezone(pytz.timezone('America/Chicago'))
+    return utc_now.astimezone(pytz.timezone(tz))
 
 
 def get_new_tx_id():
@@ -57,7 +59,7 @@ def get_new_tx_id():
 
 
 
-async def change_end_time(websocket, wake_up_time_dict, bedtime_mode_on, bedtime_mode_triggered):
+async def change_end_time(websocket, wake_up_time_dict, bedtime_mode_on, bedtime_mode_triggered, reset_start_times):
 
     logger.debug(f'Sending: {request_side}')
     await websocket.send(request_side)
@@ -166,7 +168,7 @@ async def change_end_time(websocket, wake_up_time_dict, bedtime_mode_on, bedtime
             r_msg['Sched2StartM'] = str(start_time.minute)
 
         # check if it's time to reset the start schedule
-        if not update_start_time and orig_r_msg == r_msg and now().hour == 16 and now().minute < 14:
+        if not update_start_time and reset_start_times:
             logger.info(f"{now().strftime('%H:%M')} -- Time to reset start times")
             # time to reset the start time
             r_msg['Sched1StartH'] = str(parse_dt(settings['weeknight_start_time']).hour)
@@ -347,6 +349,8 @@ async def snuggler_update():
         'last_bedtime_mode_on': False
     }
 
+    reset_start_time_sec_window = int((settings['update_interval_secs'] * 3) + (settings['update_interval_secs'] / 2))
+
     while True:
 
         try:
@@ -383,6 +387,8 @@ async def snuggler_update():
 
             # check if the wake up time has been updated
             need_to_update = False
+            reset_start_times = False
+
             if last_weekday_time.hour != wake_up_time_dict['weekday'].hour or last_weekday_time.minute != wake_up_time_dict['weekday'].minute:  # noqa: E501
                 logger.info(f"Weekday wakeup time has been changed: {last_weekday_time} to {wake_up_time_dict['weekday']}")
                 need_to_update = True
@@ -391,15 +397,28 @@ async def snuggler_update():
                 logger.info(f"Weekend wakeup time has been changed: {last_weekend_time} to {wake_up_time_dict['weekend']}")
                 need_to_update = True
 
-            elif now().hour == 16 and now().minute < settings['update_interval_secs'] * 3:
-                logger.info('Time to reset start times')
-                need_to_update = True
+            else:
+                # if the topper is set to heat, it will start that 1 hour before the "start" time
+                # weeknight would be Sunday->Thursday nights
+                if now().isoweekday() in [7, 1, 2, 3, 4]:
+                    start_time = settings['weeknight_start_time']
+                else:
+                    start_time = settings['weekendnight_start_time']
+
+                # get the window to reset the start times
+                reset_start_time_window_start = pytz.timezone(tz).localize(parse_dt(start_time)) - timedelta(hours=1, seconds=reset_start_time_sec_window)
+                reset_start_time_window_end = pytz.timezone(tz).localize(parse_dt(start_time)) - timedelta(hours=1, seconds=15)
+
+                if now() >= reset_start_time_window_start and now() <= reset_start_time_window_end:
+                    logger.info('Time to reset start times')
+                    need_to_update = True
+                    reset_start_times = True
 
             if need_to_update:
                 async with websockets.connect(snuggler_url) as ws:
 
                     # await asyncio.gather(change_end_time(ws, parsed_time), receive(ws))
-                    await asyncio.gather(change_end_time(ws, wake_up_time_dict, bedtime_mode_on, bedtime_mode_triggered))
+                    await asyncio.gather(change_end_time(ws, wake_up_time_dict, bedtime_mode_on, bedtime_mode_triggered, reset_start_times))
 
             else:
                 logger.debug('Wakeup times have not changed, not updating')
