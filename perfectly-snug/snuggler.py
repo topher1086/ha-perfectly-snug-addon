@@ -87,10 +87,14 @@ class StatusHolder():
             self.schedule = {'R': {}, 'L': {}}
             self.schedule = {'R': {}, 'L': {}}
 
-            # app is -10 -> +10
-            # variables are 0 -> 20
-            # -2 in the app is an 8
-            self.run_level = 8
+        # app is -10 -> +10
+        # variables are 0 -> 20
+        # -2 in the app is an 8
+        # add 10 to the setting to make it correct for the api
+        if switch_type == 'playtime':
+            self.run_level = settings['play_time_run_level'] + 10
+        elif switch_type == 'naptime':
+            self.run_level = settings['nap_time_run_level'] + 10
 
 bedtime_status = StatusHolder(switch_type='bedtime')
 nap_time_status = StatusHolder(switch_type='naptime')

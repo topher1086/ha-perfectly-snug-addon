@@ -1,6 +1,6 @@
 name: "Perfectly Snug"
 description: "Control Perfectly Snug Topper"
-version: "1.1.0"
+version: "1.1.1"
 slug: "perfectly_snug"
 init: false
 arch:
@@ -15,7 +15,9 @@ options:
   weekday_wake_up_time_helper: input_datetime.weekday_wake_up_time
   weekend_wake_up_time_helper: input_datetime.weekend_wake_up_time
   play_time_mode_helper: input_boolean.play_time
+  play_time_run_level: -3
   nap_time_mode_helper: input_boolean.nap_time
+  nap_time_run_level: -3
   weeknight_start_time: "21:00"
   weekendnight_start_time: "22:00"
   update_interval_secs: 60
@@ -26,7 +28,9 @@ schema:
   weekday_wake_up_time_helper: str
   weekend_wake_up_time_helper: str
   play_time_mode_helper: str
+  play_time_run_level: match(^(?:-?(?:[0-9]|10))$)
   nap_time_mode_helper: str
+  nap_time_run_level: match(^(?:-?(?:[0-9]|10))$)
   weeknight_start_time: match(^(?:[0-1]\d|2[0-3]):[0-5]\d$)
   weekendnight_start_time: match(^(?:[0-1]\d|2[0-3]):[0-5]\d$)
   update_interval_secs: int(30,3600)
