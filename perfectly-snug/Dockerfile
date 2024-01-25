@@ -1,5 +1,5 @@
 ARG BUILD_FROM
-FROM $BUILD_FROM
+FROM ghcr.io/home-assistant/amd64-base:latest
 
 # Copy data for add-on
 COPY run.sh /
@@ -11,8 +11,10 @@ RUN apk add --no-cache
 RUN apk add python3
 RUN apk add py3-pip
 
-RUN python3 -m venv .venv
-RUN source .venv/bin/activate
+ENV VIRTUAL_ENV=/.venv
+RUN python3 -m venv $VIRTUAL_ENV
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
 RUN pip3 install -r requirements.txt
 
 CMD ["./run.sh"]
