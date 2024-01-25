@@ -10,6 +10,9 @@ RUN chmod a+x /run.sh
 RUN apk add --no-cache
 RUN apk add python3
 RUN apk add py3-pip
+
+RUN python3 -m venv .venv
+RUN source .venv/bin/activate
 RUN pip3 install -r requirements.txt
 
 CMD ["./run.sh"]
