@@ -11,6 +11,8 @@ RUN apk add --no-cache
 RUN apk add python3
 RUN apk add py3-pip
 
+# Alpine 3.19 doesn't work without a virtual environment now
+# set the environment variable and add it to the path so it works
 ENV VIRTUAL_ENV=/.venv
 RUN python3 -m venv $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
