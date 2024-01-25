@@ -1,6 +1,6 @@
 name: "Perfectly Snug"
 description: "Control Perfectly Snug Topper"
-version: "1.2.1"
+version: "1.2.2"
 slug: "perfectly_snug"
 init: false
 arch:

@@ -7,7 +7,9 @@ COPY snuggler.py /
 COPY requirements.txt /
 RUN chmod a+x /run.sh
 
-RUN apk add --no-cache python3 py3-pip
+RUN apk add --no-cache
+RUN apk add python3
+RUN apk add py3-pip
 RUN pip3 install -r requirements.txt
 
 CMD ["./run.sh"]
