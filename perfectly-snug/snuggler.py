@@ -150,8 +150,8 @@ async def change_end_time(
                 await asyncio.sleep(5)
 
         is_running = False
-        if overnight_msg['Running'] == 1:
-            logger.debug(f'{side} side -- is running')
+        if overnight_msg["Running"] == 1:
+            logger.debug(f"{side} side -- is running")
             is_running = True
 
         # get the schedule settings now
@@ -197,13 +197,18 @@ async def change_end_time(
         if now_naive().hour <= 3:
             day_offset -= 1
         # this will be the index to get from the schedules
-        schedule_day_index = now_naive().isoweekday() - day_offset
+        # add since this will be a negative number
+        schedule_day_index = now_naive().isoweekday() + day_offset
 
         # set the current schedule stop time
-        weekday_or_weekend = 'weekday' if schedule_day_index in [1,2,3,4,5] else 'weekend'
+        weekday_or_weekend = (
+            "weekday" if schedule_day_index in [1, 2, 3, 4, 5] else "weekend"
+        )
         # go to tomorrow morning
         # if day_offset is -1, then it's morning and we shouldn't add a day, it would be today
-        ha_stop_time =  wake_up_time_dict[weekday_or_weekend] + timedelta(days=day_offset + 1)
+        ha_stop_time = wake_up_time_dict[weekday_or_weekend] + timedelta(
+            days=day_offset + 1
+        )
 
         # if the index is 7, then it's Sunday and we need to change it to 0 for the first in the list
         if schedule_day_index == 7:
@@ -222,7 +227,7 @@ async def change_end_time(
                 break
 
         # if something didn't work or the day isn't scheduled, we'll quit
-        if not current_start_time or not sched:
+        if not current_start_time or not current_schedule:
             continue
 
         # figure out if the stop time changed for this schedule
@@ -245,21 +250,36 @@ async def change_end_time(
 
         # before start time - just update the schedule
         if not past_start_time and stop_time_changed:
-            logger.info(f"{side} side -- Before start time and scheduled changed, just updating it")
+            logger.info(
+                f"{side} side -- Before start time and scheduled changed, just updating it"
+            )
             update_endtime_schedule = True
-        
+
         elif past_start_time and stop_time_changed:
             if (ha_stop_time - now_naive()).total_seconds() < 7500:
-                logger.info(f"{side} side -- Past start time, but within 7500 seconds of end time, do nothing")
+                logger.info(
+                    f"{side} side -- Past start time, but within 7500 seconds of end time, do nothing"
+                )
             else:
-                logger.info(f"{side} side -- Past start time, updating schedule and restarting topper")
+                logger.info(
+                    f"{side} side -- Past start time, updating schedule and restarting topper"
+                )
                 update_endtime_schedule = True
                 stop_and_restart = True
-        
-        elif past_start_time and bedtime_mode_on and bedtime_mode_triggered and not is_running:
-            logger.info(f"{side} side -- Past start time and bedtime just started and topper is not running")
+
+        elif (
+            past_start_time
+            and bedtime_mode_on
+            and bedtime_mode_triggered
+            and not is_running
+        ):
+            logger.info(
+                f"{side} side -- Past start time and bedtime just started and topper is not running"
+            )
             if (ha_stop_time - now_naive()).total_seconds() < 7500:
-                logger.info(f"{side} side -- Past start time, but within 7500 seconds of end time, do nothing")
+                logger.info(
+                    f"{side} side -- Past start time, but within 7500 seconds of end time, do nothing"
+                )
             else:
                 logger.info(f"{side} side -- Past start time, starting topper")
                 stop_and_restart = True
@@ -267,7 +287,9 @@ async def change_end_time(
         elif reset_schedule:
             logger.info(f"{now().strftime('%H:%M')} -- Time to reset start times")
             # time to reset the start time
-            settings_msg["Sched1StartH"] = str(parse_dt(settings["weeknight_start_time"]).hour)
+            settings_msg["Sched1StartH"] = str(
+                parse_dt(settings["weeknight_start_time"]).hour
+            )
             settings_msg["Sched1StartM"] = str(
                 parse_dt(settings["weeknight_start_time"]).minute
             )
@@ -291,9 +313,7 @@ async def change_end_time(
             await asyncio.sleep(5)
 
         if stop_and_restart:
-            logger.info(
-                f"{side} side -- Stop and restart topper"
-            )
+            logger.info(f"{side} side -- Stop and restart topper")
 
             for _ in range(5):
                 msg_s = {
@@ -321,7 +341,9 @@ async def change_end_time(
                     await asyncio.sleep(5)
 
             if overnight_msg["Running"] == 1:
-                logger.info(f"{side} side -- Currently running, sending message to stop it")
+                logger.info(
+                    f"{side} side -- Currently running, sending message to stop it"
+                )
 
                 overnight_msg["Running"] = 0
                 overnight_msg["TxId"] = get_new_tx_id()
@@ -331,7 +353,7 @@ async def change_end_time(
 
                 await websocket.send(msg)
                 await asyncio.sleep(5)
-            
+
             # now start the topper
             logger.info(f"{side} side -- Sending message to start topper")
 
@@ -343,7 +365,7 @@ async def change_end_time(
 
             await websocket.send(msg)
             await asyncio.sleep(2)
-            
+
 
 async def mode_changed_update_topper(
     websocket: websockets.WebSocketClientProtocol,
