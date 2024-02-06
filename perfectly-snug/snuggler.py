@@ -28,11 +28,17 @@ except FileNotFoundError:
     settings = full_config["options"]
     settings["topper_ip_address"] = "192.168.1.104"
 
+try:
+    with open("./perfectly-snug/test_config.yaml") as yaml_file:
+        test_config = yaml.safe_load(yaml_file)
+except FileNotFoundError:
+    test_config = {}
+
 # reset the logging level from DEBUG by default
 logger.remove()
 logger.add(sys.stderr, level=settings["logging_level"] if in_addon else "DEBUG")
 
-base_url = "http://supervisor/core/api" if in_addon else "http://localhost:8123/api"
+base_url = "http://supervisor/core/api" if in_addon else test_config.get("base_url")
 
 snuggler_url = f"ws://{settings['topper_ip_address']}/PSWS"
 
@@ -41,7 +47,7 @@ logger.debug(f"Base URL: {base_url}")
 if in_addon:
     token = environ.get("SUPERVISOR_TOKEN")
 else:
-    token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJhNDgyZmRmZGNmOWI0MDY5OTJlODg0MjdlN2YyMGRlNyIsImlhdCI6MTcwNjE0Nzg0NiwiZXhwIjoyMDIxNTA3ODQ2fQ.S3mIyvYtkcIRBZLAv8Tr4WuBjxj81ocUsxyi5U3di6o"
+    token = test_config.get("token")
 
 request_side = '{"Comm":"Status","sideID":"?","Val":"Side"}'
 tx_id = 1
@@ -222,7 +228,7 @@ async def change_end_time(
                 # subtract the day offset to get the correct start date and time
                 current_start_time = parse_dt(
                     f"{settings_msg[f'Sched{sched}StartH']}:{settings_msg[f'Sched{sched}StartM']}"
-                ) - timedelta(days=day_offset)
+                ) + timedelta(days=day_offset)
                 current_schedule = sched
                 break
 
