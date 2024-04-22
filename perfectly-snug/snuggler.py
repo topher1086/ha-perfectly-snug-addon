@@ -98,6 +98,8 @@ class StatusHolder:
             self.schedule = {"R": {}, "L": {}}
             self.schedule = {"R": {}, "L": {}}
 
+            self.cool_off_active = False
+
         # app is -10 -> +10
         # variables are 0 -> 20
         # -2 in the app is an 8
@@ -387,6 +389,7 @@ async def mode_changed_update_topper(
     await asyncio.sleep(3)
 
     if mode_on:
+        status_obj.cool_off_active = False
         for side in ["R", "L"]:
             logger.info(
                 f"{side} side -- Getting settings to update and starting topper"
@@ -520,6 +523,111 @@ async def mode_changed_update_topper(
 
             await websocket.send(msg)
             await asyncio.sleep(1)
+
+
+async def start_cool_off_process(
+    websocket: websockets.WebSocketClientProtocol,
+    status_obj: StatusHolder,
+):
+    logger.info(f'{status_obj.switch_type} cool off triggered')
+
+    logger.debug(f"Sending: {request_side}")
+    await websocket.send(request_side)
+
+    _ = await recv_msg(websocket)
+    await asyncio.sleep(3)
+
+    status_obj.cool_off_active = True
+
+    for side in ["R", "L"]:
+        logger.info(
+            f"{side} side -- Getting settings to update and starting topper"
+        )
+
+        # check the current running status
+        overnight_success = False
+        for _ in range(10):
+            msg_s = {
+                "Comm": "Status",
+                "sideID": side,
+                "Val": "Overnight",
+                "TxId": get_new_tx_id(),
+            }
+
+            msg = json.dumps(msg_s, separators=(",", ":"))
+            # logger.debug(f'Sending message: {msg}')
+
+            await websocket.send(msg)
+
+            # logger.debug('Msg sent')
+            # await asyncio.sleep(2)
+
+            overnight_msg = await recv_msg(websocket, "overnight")
+
+            # logger.debug(f'Msg received: {overnight_msg}')
+
+            if overnight_msg["sideID"] == side:
+                overnight_success = True
+                break
+            else:
+                await asyncio.sleep(5)
+
+        if overnight_msg["Running"] == 0:
+            logger.warning(f"{side} side is not running, skipping")
+            continue
+
+        if not overnight_success:
+            logger.warning(
+                f"Could not get overnight status for {side} side, skipping"
+            )
+            continue
+
+        # get the schedule settings now
+        schedule_success = False
+        for _ in range(10):
+            msg_s = {
+                "Comm": "Status",
+                "sideID": side,
+                "Val": "Settings",
+                "TxId": get_new_tx_id(),
+            }
+
+            msg = json.dumps(msg_s, separators=(",", ":"))
+            # logger.debug(f'Sending message: {msg}')
+
+            await websocket.send(msg)
+
+            # logger.debug('Msg sent')
+            # await asyncio.sleep(2)
+
+            schedule_msg = await recv_msg(websocket, "schedule")
+
+            # logger.debug(f'Msg received: {schedule_msg}')
+
+            if schedule_msg["sideID"] == side:
+                schedule_success = True
+                break
+            else:
+                await asyncio.sleep(5)
+
+        if not schedule_success:
+            logger.warning(
+                f"Could not get schedule status for {side} side, skipping"
+            )
+            continue
+
+        logger.info(f"{side} side -- Sending message to update levels")
+
+        overnight_msg["Running"] = 1
+        overnight_msg["L1"] = 0
+        overnight_msg["L2"] = 0
+        overnight_msg["L3"] = 0
+        overnight_msg["TxId"] = get_new_tx_id()
+
+        msg = json.dumps(overnight_msg, separators=(",", ":"))
+
+        await websocket.send(msg)
+        await asyncio.sleep(1)
 
 
 def check_msg(m, m_type=None):
@@ -746,6 +854,16 @@ async def snuggler_update():
 
                 nap_mode = await get_switch_status(settings["nap_time_mode_helper"])
 
+                if status_obj.cool_off_active is False and nap_mode['state'] == 'off' and (now() - parse_dt(nap_mode["last_changed"])).total_seconds() < (settings["update_interval_secs"] * 1.5):
+                    logger.info('Nap time turned off, starting cool off')
+
+                    async with websockets.connect(snuggler_url) as ws:
+                        await asyncio.gather(
+                            start_cool_off_process(
+                                ws, status_obj
+                            )
+                        )
+
                 nap_mode_delay_over = (
                     now() - parse_dt(nap_mode["last_changed"])
                 ).total_seconds() > nap_time_off_delay_secs
@@ -807,6 +925,16 @@ async def snuggler_update():
                 status_obj = play_time_status
 
                 play_mode = await get_switch_status(settings["play_time_mode_helper"])
+
+                if status_obj.cool_off_active is False and play_mode['state'] == 'off' and (now() - parse_dt(play_mode["last_changed"])).total_seconds() < (settings["update_interval_secs"] * 1.5):
+                    logger.info('Play time turned off, starting cool off')
+
+                    async with websockets.connect(snuggler_url) as ws:
+                        await asyncio.gather(
+                            start_cool_off_process(
+                                ws, status_obj
+                            )
+                        )
 
                 play_mode_delay_over = (
                     now() - parse_dt(play_mode["last_changed"])
