@@ -854,15 +854,15 @@ async def snuggler_update():
 
                 nap_mode = await get_switch_status(settings["nap_time_mode_helper"])
 
-                if status_obj.cool_off_active is False and nap_mode['state'] == 'off' and (now() - parse_dt(nap_mode["last_changed"])).total_seconds() < (settings["update_interval_secs"] * 1.5):
-                    logger.info('Nap time turned off, starting cool off')
+                # if status_obj.cool_off_active is False and nap_mode['state'] == 'off' and (now() - parse_dt(nap_mode["last_changed"])).total_seconds() < (settings["update_interval_secs"] * 1.5):
+                #     logger.info('Nap time turned off, starting cool off')
 
-                    async with websockets.connect(snuggler_url) as ws:
-                        await asyncio.gather(
-                            start_cool_off_process(
-                                ws, status_obj
-                            )
-                        )
+                #     async with websockets.connect(snuggler_url) as ws:
+                #         await asyncio.gather(
+                #             start_cool_off_process(
+                #                 ws, status_obj
+                #             )
+                #         )
 
                 nap_mode_delay_over = (
                     now() - parse_dt(nap_mode["last_changed"])
