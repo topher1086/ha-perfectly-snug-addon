@@ -4,7 +4,7 @@ from loguru import logger
 import sys
 import asyncio
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from time import time
 from os import environ
 import traceback
@@ -57,13 +57,12 @@ tx_id = 1
 tz = "America/Chicago"
 
 
-def now():  # sourcery skip: aware-datetime-for-utc
-    utc_now = pytz.utc.localize(datetime.utcnow())
+def now():
+    utc_now = datetime.now(timezone.utc)
     return utc_now.astimezone(pytz.timezone(tz))
 
-
-def now_naive():  # sourcery skip: aware-datetime-for-utc
-    utc_now = pytz.utc.localize(datetime.utcnow())
+def now_naive():
+    utc_now = datetime.now(timezone.utc)
     return utc_now.astimezone(pytz.timezone(tz)).replace(tzinfo=None)
 
 
