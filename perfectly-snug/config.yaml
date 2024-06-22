@@ -1,6 +1,6 @@
 name: "Perfectly Snug"
 description: "Control Perfectly Snug Topper"
-version: "1.2.9"
+version: "2.0.0"
 slug: "perfectly_snug"
 init: false
 arch:
@@ -18,9 +18,13 @@ options:
   play_time_run_level: -3
   nap_time_mode_helper: input_boolean.nap_time
   nap_time_run_level: -3
+  cool_off_topper_helper: input_boolean.cool_off_topper
+  cool_off_run_level: -8
+  heat_up_topper_helper: input_boolean.heat_up_topper
+  heat_up_run_level: 10
   weeknight_start_time: "21:00"
   weekendnight_start_time: "22:00"
-  update_interval_secs: 60
+  update_interval_secs: 300
   logging_level: INFO
 schema:
   topper_ip_address: match(^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$)
@@ -31,6 +35,10 @@ schema:
   play_time_run_level: match(^(?:-?(?:[0-9]|10))$)
   nap_time_mode_helper: str
   nap_time_run_level: match(^(?:-?(?:[0-9]|10))$)
+  cool_off_topper_helper: str
+  cool_off_run_level: match(^(?:-?(?:[0-9]|10))$)
+  heat_up_topper_helper: str
+  heat_up_run_level: match(^(?:-?(?:[0-9]|10))$)
   weeknight_start_time: match(^(?:[0-1]\d|2[0-3]):[0-5]\d$)
   weekendnight_start_time: match(^(?:[0-1]\d|2[0-3]):[0-5]\d$)
   update_interval_secs: int(30,3600)
