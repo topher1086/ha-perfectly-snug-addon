@@ -702,324 +702,325 @@ async def snuggler_update():
         (update_interval_secs * 3) + (update_interval_secs / 2)
     )
 
-    try:
+    while True:
 
-        async with websockets.connect(base_url.replace('http://', 'ws://') + '/websocket') as ha_ws:
+        try:
+            async with websockets.connect(base_url.replace('http://', 'ws://') + '/websocket') as ha_ws:
 
-            connected_to_ws = False
-            # connect and receive the first message
-            connect_response = await ha_ws.recv()
+                connected_to_ws = False
+                # connect and receive the first message
+                connect_response = await ha_ws.recv()
 
-            auth_response = None
-            if json.loads(connect_response)['type'] == 'auth_required':
+                auth_response = None
+                if json.loads(connect_response)['type'] == 'auth_required':
 
-                # Send authentication message
-                auth_data = json.dumps({"type": "auth", "access_token": token})
-                await ha_ws.send(auth_data)
+                    # Send authentication message
+                    auth_data = json.dumps({"type": "auth", "access_token": token})
+                    await ha_ws.send(auth_data)
 
-                # Receive response (hopefully successful authentication)
-                auth_response = await ha_ws.recv()
-                json_auth_response = json.loads(auth_response)
+                    # Receive response (hopefully successful authentication)
+                    auth_response = await ha_ws.recv()
+                    json_auth_response = json.loads(auth_response)
 
-                if json_auth_response['type'] == 'auth_ok':
-                    connected_to_ws = True
-                    logger.info("Connected to Home Assistant Websocket API")
+                    if json_auth_response['type'] == 'auth_ok':
+                        connected_to_ws = True
+                        logger.info("Connected to Home Assistant Websocket API")
 
-            if not connected_to_ws:
-                logger.critical(f"Unable to authenticate to HA: {auth_response}")
-                raise ConnectionError(f"Unabled to authenticate to HA: {auth_response}")
+                if not connected_to_ws:
+                    logger.critical(f"Unable to authenticate to HA: {auth_response}")
+                    raise ConnectionError(f"Unabled to authenticate to HA: {auth_response}")
 
-            subscribe_events_data = {
-                'id': get_new_tx_id(),
-                'type': 'subscribe_events',
-                'event_type': 'state_changed'
-            }
-            await ha_ws.send(json.dumps(subscribe_events_data))
-            sub_resp = await ha_ws.recv()
-            sub_resp_data = json.loads(sub_resp)
-            if not sub_resp_data['success']:
-                logger.critical(f"Unable to subscribe to state_changed events: {sub_resp}")
-                raise ConnectionError(f"Unable to subscribe to state_changed events: {sub_resp}")
+                subscribe_events_data = {
+                    'id': get_new_tx_id(),
+                    'type': 'subscribe_events',
+                    'event_type': 'state_changed'
+                }
+                await ha_ws.send(json.dumps(subscribe_events_data))
+                sub_resp = await ha_ws.recv()
+                sub_resp_data = json.loads(sub_resp)
+                if not sub_resp_data['success']:
+                    logger.critical(f"Unable to subscribe to state_changed events: {sub_resp}")
+                    raise ConnectionError(f"Unable to subscribe to state_changed events: {sub_resp}")
 
-            st = time() - 999999
-            while ha_ws.open:
-                try:
+                st = time() - 999999
+                while ha_ws.open:
+                    try:
 
-                    msg = await ha_ws.recv()
-                    msg_json = json.loads(msg)
+                        msg = await ha_ws.recv()
+                        msg_json = json.loads(msg)
 
-                    same_state = msg_json['event']['data']['old_state']['state'] == msg_json['event']['data']['new_state']['state']
+                        same_state = msg_json['event']['data']['old_state']['state'] == msg_json['event']['data']['new_state']['state']
 
-                    entity_id = msg_json['event']['data']['entity_id']
+                        entity_id = msg_json['event']['data']['entity_id']
 
-                    if not same_state and entity_id == settings["bedtime_mode_helper"]:
-                        logger.info('Bedtime mode status changed')
+                        if not same_state and entity_id == settings["bedtime_mode_helper"]:
+                            logger.info('Bedtime mode status changed')
 
-                    elif not same_state and entity_id == settings["play_time_mode_helper"]:
-                        logger.info('Playtime mode status changed')
+                        elif not same_state and entity_id == settings["play_time_mode_helper"]:
+                            logger.info('Playtime mode status changed')
 
-                    elif not same_state and entity_id == settings["nap_time_mode_helper"]:
-                        logger.info('Naptime mode status changed')
+                        elif not same_state and entity_id == settings["nap_time_mode_helper"]:
+                            logger.info('Naptime mode status changed')
 
-                    elif not same_state and entity_id == settings["cool_off_topper_helper"]:
-                        logger.info('Cool off topper status changed')
+                        elif not same_state and entity_id == settings["cool_off_topper_helper"]:
+                            logger.info('Cool off topper status changed')
 
-                    elif not same_state and entity_id == settings["heat_up_topper_helper"]:
-                        logger.info('Heat up topper status changed')
+                        elif not same_state and entity_id == settings["heat_up_topper_helper"]:
+                            logger.info('Heat up topper status changed')
 
-                    elif not same_state and entity_id == settings["weekday_wake_up_time_helper"]:
-                        logger.info('Weekday wake up time changed')
-                        # wait for a bit before processing in case we weren't done changing the time
-                        await asyncio.sleep(15)
+                        elif not same_state and entity_id == settings["weekday_wake_up_time_helper"]:
+                            logger.info('Weekday wake up time changed')
+                            # wait for a bit before processing in case we weren't done changing the time
+                            await asyncio.sleep(15)
 
-                    elif not same_state and entity_id == settings["weekend_wake_up_time_helper"]:
-                        logger.info('Weekend wake up time changed')
-                        # wait for a bit before processing in case we weren't done changing the time
-                        await asyncio.sleep(15)
+                        elif not same_state and entity_id == settings["weekend_wake_up_time_helper"]:
+                            logger.info('Weekend wake up time changed')
+                            # wait for a bit before processing in case we weren't done changing the time
+                            await asyncio.sleep(15)
 
-                    elif st + update_interval_secs < time():
-                        logger.info(f'Update interval of {update_interval_secs:,} seconds passed, checking status')
+                        elif st + update_interval_secs < time():
+                            logger.info(f'Update interval of {update_interval_secs:,} seconds passed, checking status')
 
-                    elif not same_state:
-                        logger.debug(f"State of entity changed: {entity_id} -- {msg_json['event']['data']['old_state']['state']} -> {msg_json['event']['data']['new_state']['state']}")
-                        continue
-                    else:
-                        # just an attribute change
-                        continue
-
-                    logger.debug("Checking bedtime status...")
-
-                    bedtime_status = [x for x in status_obj_list if x.switch_type == 'bedtime'][0]
-
-                    last_weekday_time = bedtime_status.last_weekday_time
-                    last_weekend_time = bedtime_status.last_weekend_time
-
-                    bedtime_mode = await get_switch_status(settings["bedtime_mode_helper"])
-
-                    bedtime_mode_triggered = (
-                        now() - parse_dt(bedtime_mode["last_changed"])
-                    ).total_seconds() < update_interval_secs + (
-                        update_interval_secs / 2
-                    )
-                    bedtime_mode_on = bedtime_mode["state"] == "on"
-
-                    wake_up_time_dict = await get_wake_up_times()
-
-                    bedtime_status.check_timestamp = now()
-                    bedtime_status.last_weekday_time = wake_up_time_dict["weekday"]
-                    bedtime_status.last_weekend_time = wake_up_time_dict["weekend"]
-                    bedtime_status.last_mode_on = bedtime_mode_on
-
-                    # check if the wake up time has been updated
-                    need_to_update = False
-                    reset_schedule = False
-
-                    if (
-                        last_weekday_time.hour != wake_up_time_dict["weekday"].hour
-                        or last_weekday_time.minute != wake_up_time_dict["weekday"].minute
-                    ):  # noqa: E501
-                        logger.info(
-                            f"Weekday wakeup time has been changed: {last_weekday_time} to {wake_up_time_dict['weekday']}"
-                        )
-                        need_to_update = True
-
-                    elif (
-                        last_weekend_time.hour != wake_up_time_dict["weekend"].hour
-                        or last_weekend_time.minute != wake_up_time_dict["weekend"].minute
-                    ):  # noqa: E501
-                        logger.info(
-                            f"Weekend wakeup time has been changed: {last_weekend_time} to {wake_up_time_dict['weekend']}"
-                        )
-                        need_to_update = True
-
-                    else:
-                        # if the topper is set to heat, it will start that 1 hour before the "start" time
-                        # weeknight would be Sunday->Thursday nights
-                        if now().isoweekday() in [7, 1, 2, 3, 4]:
-                            start_time = settings["weeknight_start_time"]
+                        elif not same_state:
+                            logger.debug(f"State of entity changed: {entity_id} -- {msg_json['event']['data']['old_state']['state']} -> {msg_json['event']['data']['new_state']['state']}")
+                            continue
                         else:
-                            start_time = settings["weekendnight_start_time"]
+                            # just an attribute change
+                            continue
 
-                        # get the window to reset the start times
-                        reset_start_time_window_start = pytz.timezone(tz).localize(
-                            parse_dt(start_time)
-                        ) - timedelta(hours=1, seconds=reset_start_time_sec_window)
-                        reset_start_time_window_end = pytz.timezone(tz).localize(
-                            parse_dt(start_time)
-                        ) - timedelta(hours=1, seconds=15)
+                        logger.debug("Checking bedtime status...")
+
+                        bedtime_status = [x for x in status_obj_list if x.switch_type == 'bedtime'][0]
+
+                        last_weekday_time = bedtime_status.last_weekday_time
+                        last_weekend_time = bedtime_status.last_weekend_time
+
+                        bedtime_mode = await get_switch_status(settings["bedtime_mode_helper"])
+
+                        bedtime_mode_triggered = (
+                            now() - parse_dt(bedtime_mode["last_changed"])
+                        ).total_seconds() < update_interval_secs + (
+                            update_interval_secs / 2
+                        )
+                        bedtime_mode_on = bedtime_mode["state"] == "on"
+
+                        wake_up_time_dict = await get_wake_up_times()
+
+                        bedtime_status.check_timestamp = now()
+                        bedtime_status.last_weekday_time = wake_up_time_dict["weekday"]
+                        bedtime_status.last_weekend_time = wake_up_time_dict["weekend"]
+                        bedtime_status.last_mode_on = bedtime_mode_on
+
+                        # check if the wake up time has been updated
+                        need_to_update = False
+                        reset_schedule = False
 
                         if (
-                            now() >= reset_start_time_window_start
-                            and now() <= reset_start_time_window_end
-                        ):
-                            logger.info("Time to reset start times")
+                            last_weekday_time.hour != wake_up_time_dict["weekday"].hour
+                            or last_weekday_time.minute != wake_up_time_dict["weekday"].minute
+                        ):  # noqa: E501
+                            logger.info(
+                                f"Weekday wakeup time has been changed: {last_weekday_time} to {wake_up_time_dict['weekday']}"
+                            )
                             need_to_update = True
-                            reset_schedule = True
 
-                    if need_to_update:
-                        async with websockets.connect(snuggler_url) as ws:
-                            await asyncio.gather(
-                                change_end_time(
-                                    ws,
-                                    wake_up_time_dict,
-                                    bedtime_mode_on,
-                                    bedtime_mode_triggered,
-                                    reset_schedule,
+                        elif (
+                            last_weekend_time.hour != wake_up_time_dict["weekend"].hour
+                            or last_weekend_time.minute != wake_up_time_dict["weekend"].minute
+                        ):  # noqa: E501
+                            logger.info(
+                                f"Weekend wakeup time has been changed: {last_weekend_time} to {wake_up_time_dict['weekend']}"
+                            )
+                            need_to_update = True
+
+                        else:
+                            # if the topper is set to heat, it will start that 1 hour before the "start" time
+                            # weeknight would be Sunday->Thursday nights
+                            if now().isoweekday() in [7, 1, 2, 3, 4]:
+                                start_time = settings["weeknight_start_time"]
+                            else:
+                                start_time = settings["weekendnight_start_time"]
+
+                            # get the window to reset the start times
+                            reset_start_time_window_start = pytz.timezone(tz).localize(
+                                parse_dt(start_time)
+                            ) - timedelta(hours=1, seconds=reset_start_time_sec_window)
+                            reset_start_time_window_end = pytz.timezone(tz).localize(
+                                parse_dt(start_time)
+                            ) - timedelta(hours=1, seconds=15)
+
+                            if (
+                                now() >= reset_start_time_window_start
+                                and now() <= reset_start_time_window_end
+                            ):
+                                logger.info("Time to reset start times")
+                                need_to_update = True
+                                reset_schedule = True
+
+                        if need_to_update:
+                            async with websockets.connect(snuggler_url) as ws:
+                                await asyncio.gather(
+                                    change_end_time(
+                                        ws,
+                                        wake_up_time_dict,
+                                        bedtime_mode_on,
+                                        bedtime_mode_triggered,
+                                        reset_schedule,
+                                    )
                                 )
+
+                        else:
+                            logger.debug("Wakeup times have not changed, not updating")
+
+                    except Exception as e:
+                        logger.critical(traceback.print_exc())
+                        logger.critical(f"Exception: {type(e)}: {e}")
+
+                    # check nap time now
+                    try:
+                        switch_type = 'naptime'
+                        logger_prepend = 'Nap time mode'
+                        switch_entity_id = settings["nap_time_mode_helper"]
+
+                        delay_off_secs = 100
+
+                        logger.debug(f"Checking {switch_type} status...")
+
+                        something_else_on = False
+                        for s in status_obj_list:
+                            if s.switch_type == switch_type:
+                                continue
+                            if s.last_mode_on == True:
+                                logger.info(f'{s.switch_type.capitalize()} is on, not checking {switch_type}')
+                                something_else_on = True
+
+                        if not something_else_on:
+                            status_obj = [x for x in status_obj_list if x.switch_type == switch_type][0]
+
+                            await check_switch_for_change(
+                                logger_prepend=logger_prepend,
+                                switch_entity_id=switch_entity_id,
+                                status_obj=status_obj,
+                                delay_off_secs=delay_off_secs
                             )
 
+                    except Exception as e:
+                        logger.critical(traceback.print_exc())
+                        logger.critical(f"Exception: {type(e)}: {e}")
+
+                    # check play time now
+                    try:
+                        switch_type = 'playtime'
+                        logger_prepend = 'Play time mode'
+                        switch_entity_id = settings["play_time_mode_helper"]
+
+                        delay_off_secs = 100
+
+                        logger.debug(f"Checking {switch_type} status...")
+
+                        something_else_on = False
+                        for s in status_obj_list:
+                            if s.switch_type == switch_type:
+                                continue
+                            if s.last_mode_on == True:
+                                logger.info(f'{s.switch_type.capitalize()} is on, not checking {switch_type}')
+                                something_else_on = True
+
+                        if not something_else_on:
+                            status_obj = [x for x in status_obj_list if x.switch_type == switch_type][0]
+
+                            await check_switch_for_change(
+                                logger_prepend=logger_prepend,
+                                switch_entity_id=switch_entity_id,
+                                status_obj=status_obj,
+                                delay_off_secs=delay_off_secs
+                            )
+
+                    except Exception as e:
+                        logger.critical(traceback.print_exc())
+                        logger.critical(f"Exception: {type(e)}: {e}")
+
+                    # check cool off topper
+                    try:
+                        switch_type = 'cool_off'
+                        logger_prepend = 'Cool off topper'
+                        switch_entity_id = settings["cool_off_topper_helper"]
+
+                        delay_off_secs = 0
+
+                        logger.debug(f"Checking {switch_type} status...")
+
+                        something_else_on = False
+                        for s in status_obj_list:
+                            if s.switch_type == switch_type:
+                                continue
+                            if s.last_mode_on == True:
+                                logger.info(f'{s.switch_type.capitalize()} is on, not checking {switch_type}')
+                                something_else_on = True
+
+                        if not something_else_on:
+                            status_obj = [x for x in status_obj_list if x.switch_type == switch_type][0]
+
+                            await check_switch_for_change(
+                                logger_prepend=logger_prepend,
+                                switch_entity_id=switch_entity_id,
+                                status_obj=status_obj,
+                                delay_off_secs=delay_off_secs
+                            )
+
+                    except Exception as e:
+                        logger.critical(traceback.print_exc())
+                        logger.critical(f"Exception: {type(e)}: {e}")
+
+                    # check heat up topper
+                    try:
+                        switch_type = 'heat_up'
+                        logger_prepend = 'Heat up topper'
+                        switch_entity_id = settings["heat_up_topper_helper"]
+
+                        delay_off_secs = 0
+
+                        logger.debug(f"Checking {switch_type} status...")
+
+                        something_else_on = False
+                        for s in status_obj_list:
+                            if s.switch_type == switch_type:
+                                continue
+                            if s.last_mode_on == True:
+                                logger.info(f'{s.switch_type.capitalize()} is on, not checking {switch_type}')
+                                something_else_on = True
+
+                        if not something_else_on:
+                            status_obj = [x for x in status_obj_list if x.switch_type == switch_type][0]
+
+                            await check_switch_for_change(
+                                logger_prepend=logger_prepend,
+                                switch_entity_id=switch_entity_id,
+                                status_obj=status_obj,
+                                delay_off_secs=delay_off_secs
+                            )
+
+                    except Exception as e:
+                        logger.critical(traceback.print_exc())
+                        logger.critical(f"Exception: {type(e)}: {e}")
+
+                    if now().minute == 0:
+                        logger.info(
+                            f"Waiting {update_interval_secs:,} seconds to check again..."
+                        )
                     else:
-                        logger.debug("Wakeup times have not changed, not updating")
-
-                except Exception as e:
-                    logger.critical(traceback.print_exc())
-                    logger.critical(f"Exception: {type(e)}: {e}")
-
-                # check nap time now
-                try:
-                    switch_type = 'naptime'
-                    logger_prepend = 'Nap time mode'
-                    switch_entity_id = settings["nap_time_mode_helper"]
-
-                    delay_off_secs = 100
-
-                    logger.debug(f"Checking {switch_type} status...")
-
-                    something_else_on = False
-                    for s in status_obj_list:
-                        if s.switch_type == switch_type:
-                            continue
-                        if s.last_mode_on == True:
-                            logger.info(f'{s.switch_type.capitalize()} is on, not checking {switch_type}')
-                            something_else_on = True
-
-                    if not something_else_on:
-                        status_obj = [x for x in status_obj_list if x.switch_type == switch_type][0]
-
-                        await check_switch_for_change(
-                            logger_prepend=logger_prepend,
-                            switch_entity_id=switch_entity_id,
-                            status_obj=status_obj,
-                            delay_off_secs=delay_off_secs
+                        logger.debug(
+                            f"Waiting {update_interval_secs:,} seconds to check again..."
                         )
 
-                except Exception as e:
-                    logger.critical(traceback.print_exc())
-                    logger.critical(f"Exception: {type(e)}: {e}")
+                    logger.debug(f"Time taken to check: {(time() - st) * 1000:,.0f} ms")
+                    # await asyncio.sleep(update_interval_secs)
+                    st = time()
 
-                # check play time now
-                try:
-                    switch_type = 'playtime'
-                    logger_prepend = 'Play time mode'
-                    switch_entity_id = settings["play_time_mode_helper"]
-
-                    delay_off_secs = 100
-
-                    logger.debug(f"Checking {switch_type} status...")
-
-                    something_else_on = False
-                    for s in status_obj_list:
-                        if s.switch_type == switch_type:
-                            continue
-                        if s.last_mode_on == True:
-                            logger.info(f'{s.switch_type.capitalize()} is on, not checking {switch_type}')
-                            something_else_on = True
-
-                    if not something_else_on:
-                        status_obj = [x for x in status_obj_list if x.switch_type == switch_type][0]
-
-                        await check_switch_for_change(
-                            logger_prepend=logger_prepend,
-                            switch_entity_id=switch_entity_id,
-                            status_obj=status_obj,
-                            delay_off_secs=delay_off_secs
-                        )
-
-                except Exception as e:
-                    logger.critical(traceback.print_exc())
-                    logger.critical(f"Exception: {type(e)}: {e}")
-
-                # check cool off topper
-                try:
-                    switch_type = 'cool_off'
-                    logger_prepend = 'Cool off topper'
-                    switch_entity_id = settings["cool_off_topper_helper"]
-
-                    delay_off_secs = 0
-
-                    logger.debug(f"Checking {switch_type} status...")
-
-                    something_else_on = False
-                    for s in status_obj_list:
-                        if s.switch_type == switch_type:
-                            continue
-                        if s.last_mode_on == True:
-                            logger.info(f'{s.switch_type.capitalize()} is on, not checking {switch_type}')
-                            something_else_on = True
-
-                    if not something_else_on:
-                        status_obj = [x for x in status_obj_list if x.switch_type == switch_type][0]
-
-                        await check_switch_for_change(
-                            logger_prepend=logger_prepend,
-                            switch_entity_id=switch_entity_id,
-                            status_obj=status_obj,
-                            delay_off_secs=delay_off_secs
-                        )
-
-                except Exception as e:
-                    logger.critical(traceback.print_exc())
-                    logger.critical(f"Exception: {type(e)}: {e}")
-
-                # check heat up topper
-                try:
-                    switch_type = 'heat_up'
-                    logger_prepend = 'Heat up topper'
-                    switch_entity_id = settings["heat_up_topper_helper"]
-
-                    delay_off_secs = 0
-
-                    logger.debug(f"Checking {switch_type} status...")
-
-                    something_else_on = False
-                    for s in status_obj_list:
-                        if s.switch_type == switch_type:
-                            continue
-                        if s.last_mode_on == True:
-                            logger.info(f'{s.switch_type.capitalize()} is on, not checking {switch_type}')
-                            something_else_on = True
-
-                    if not something_else_on:
-                        status_obj = [x for x in status_obj_list if x.switch_type == switch_type][0]
-
-                        await check_switch_for_change(
-                            logger_prepend=logger_prepend,
-                            switch_entity_id=switch_entity_id,
-                            status_obj=status_obj,
-                            delay_off_secs=delay_off_secs
-                        )
-
-                except Exception as e:
-                    logger.critical(traceback.print_exc())
-                    logger.critical(f"Exception: {type(e)}: {e}")
-
-                if now().minute == 0:
-                    logger.info(
-                        f"Waiting {update_interval_secs:,} seconds to check again..."
-                    )
-                else:
-                    logger.debug(
-                        f"Waiting {update_interval_secs:,} seconds to check again..."
-                    )
-
-                logger.debug(f"Time taken to check: {(time() - st) * 1000:,.0f} ms")
-                # await asyncio.sleep(update_interval_secs)
-                st = time()
-
-    except Exception as e:
-        logger.critical(traceback.print_exc())
-        logger.critical(f"Exception: {type(e)}: {e}")
-        await asyncio.sleep(60)
+        except Exception as e:
+            logger.critical(traceback.print_exc())
+            logger.critical(f"Exception: {type(e)}: {e}")
+            await asyncio.sleep(60)
 
 
 if __name__ == "__main__":
