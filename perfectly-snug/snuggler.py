@@ -748,7 +748,10 @@ async def snuggler_update():
                     msg = await ha_ws.recv()
                     msg_json = json.loads(msg)
 
-                    same_state = msg_json['event']['data']['old_state']['state'] == msg_json['event']['data']['new_state']['state']
+                    try:
+                        same_state = msg_json['event']['data']['old_state']['state'] == msg_json['event']['data']['new_state']['state']
+                    except TypeError:
+                        continue
 
                     entity_id = msg_json['event']['data']['entity_id']
 
