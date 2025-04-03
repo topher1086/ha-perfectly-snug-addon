@@ -1260,6 +1260,7 @@ async def snuggler_update():
                                 await asyncio.gather(
                                     update_levels(websocket=ws, update_topper=True)
                                 )
+                                action_taken = True
 
                     if not action_taken and not activity_level_override_switch_on:
                         async with websockets.connect(snuggler_url) as ws:
