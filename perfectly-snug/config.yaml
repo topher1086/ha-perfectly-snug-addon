@@ -1,6 +1,6 @@
 name: "Perfectly Snug"
 description: "Control Perfectly Snug Topper"
-version: "2.0.6"
+version: "2.0.7"
 slug: "perfectly_snug"
 init: false
 arch:
@@ -22,6 +22,12 @@ options:
   cool_off_run_level: -8
   heat_up_topper_helper: input_boolean.heat_up_topper
   heat_up_run_level: 10
+  left_side_start_helper: input_number.perfectly_snug_left_start
+  left_side_sleep_helper: input_number.perfectly_snug_left_sleep
+  left_side_wake_helper: input_number.perfectly_snug_left_wake
+  right_side_start_helper: input_number.perfectly_snug_right_start
+  right_side_sleep_helper: input_number.perfectly_snug_right_sleep
+  right_side_wake_helper: input_number.perfectly_snug_right_wake
   weeknight_start_time: "21:00"
   weekendnight_start_time: "22:00"
   update_interval_secs: 300
@@ -39,6 +45,12 @@ schema:
   cool_off_run_level: match(^(?:-?(?:[0-9]|10))$)
   heat_up_topper_helper: str
   heat_up_run_level: match(^(?:-?(?:[0-9]|10))$)
+  left_side_start_helper: str
+  left_side_sleep_helper: str
+  left_side_wake_helper: str
+  right_side_start_helper: str
+  right_side_sleep_helper: str
+  right_side_wake_helper: str
   weeknight_start_time: match(^(?:[0-1]\d|2[0-3]):[0-5]\d$)
   weekendnight_start_time: match(^(?:[0-1]\d|2[0-3]):[0-5]\d$)
   update_interval_secs: int(30,3600)

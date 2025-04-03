@@ -12,7 +12,7 @@ import pytz
 import websockets
 from dateutil.parser import parse as parse_dt
 
-from requests import get
+from requests import get, post
 
 in_addon = not __file__.startswith("/workspaces/") and not __file__.startswith(
     "/home/chris/projects/"
@@ -56,6 +56,14 @@ tx_id = 1
 
 tz = "America/Chicago"
 
+all_topper_level_helper_ids = [
+    settings["left_side_start_helper"],
+    settings["left_side_sleep_helper"],
+    settings["left_side_wake_helper"],
+    settings["right_side_start_helper"],
+    settings["right_side_sleep_helper"],
+    settings["right_side_wake_helper"],
+]
 
 def now():
     utc_now = datetime.now(timezone.utc)
@@ -123,11 +131,29 @@ status_switch_types = [
 
 status_obj_list = [StatusHolder(switch_type=x) for x in status_switch_types]
 
-# bedtime_status = StatusHolder(switch_type="bedtime")
-# nap_time_status = StatusHolder(switch_type="naptime")
-# play_time_status = StatusHolder(switch_type="playtime")
-# cool_off_status = StatusHolder(switch_type="cool_off")
-# heat_up_status = StatusHolder(switch_type="heat_up")
+
+def convert_from_ha_to_topper(number: int) -> int:
+    """Convert a number from -10 to 10 to the Perfectly Snug setting
+
+    Args:
+        number (int): Setting from Home Assistant
+
+    Returns:
+        int: Converted number
+    """
+    return number + 10
+
+
+def convert_from_topper_to_ha(number: int) -> int:
+    """Convert a number from 0 to 20 to the Home Assistant
+
+    Args:
+        number (int): Setting from Topper
+
+    Returns:
+        int: Converted number
+    """
+    return number - 10
 
 
 async def change_end_time(
@@ -543,6 +569,176 @@ async def mode_changed_update_topper(
             await asyncio.sleep(1)
 
 
+async def update_levels(
+    websocket: websockets.WebSocketClientProtocol,
+    update_ha: bool = False,
+    update_topper: bool = False,
+):
+    if update_ha:
+        logger.info(f"Updating topper settings in Home Assistant")
+    elif update_topper:
+        logger.info(f"Updating topper with settings in Home Assistant")
+    else:
+        logger.critical("No update direction set!")
+        return
+
+    logger.debug(f"Sending: {request_side}")
+    await websocket.send(request_side)
+
+    _ = await recv_msg(websocket)
+    await asyncio.sleep(3)
+
+    if update_ha:
+        for side in ["R", "L"]:
+            logger.info(f"{side} side -- Getting settings from topper")
+
+            # get the current settings
+            for _ in range(10):
+                msg_s = {
+                    "Comm": "Status",
+                    "sideID": side,
+                    "Val": "Overnight",
+                    "TxId": get_new_tx_id(),
+                }
+
+                msg = json.dumps(msg_s, separators=(",", ":"))
+                # logger.debug(f'Sending message: {msg}')
+
+                await websocket.send(msg)
+
+                # logger.debug('Msg sent')
+                # await asyncio.sleep(2)
+
+                overnight_msg = await recv_msg(websocket, "overnight")
+
+                # logger.debug(f'Msg received: {overnight_msg}')
+
+                if overnight_msg["sideID"] == side:
+                    break
+                else:
+                    await asyncio.sleep(5)
+
+            start_entity_id = settings[
+                f'{"right" if side == "R" else "left"}_side_start_helper'
+            ]
+            sleep_entity_id = settings[
+                f'{"right" if side == "R" else "left"}_side_sleep_helper'
+            ]
+            wake_entity_id = settings[
+                f'{"right" if side == "R" else "left"}_side_wake_helper'
+            ]
+
+            start_r = await post_ha_number_setting(
+                start_entity_id, convert_from_topper_to_ha(overnight_msg["L1"])
+            )
+
+            sleep_r = await post_ha_number_setting(
+                sleep_entity_id, convert_from_topper_to_ha(overnight_msg["L2"])
+            )
+
+            wake_r = await post_ha_number_setting(
+                wake_entity_id, convert_from_topper_to_ha(overnight_msg["L3"])
+            )
+
+    if update_topper:
+        for side in ["R", "L"]:
+            logger.info(f"{side} side -- Getting settings from topper")
+
+            # get the current settings
+            for _ in range(10):
+                msg_s = {
+                    "Comm": "Status",
+                    "sideID": side,
+                    "Val": "Overnight",
+                    "TxId": get_new_tx_id(),
+                }
+
+                msg = json.dumps(msg_s, separators=(",", ":"))
+                # logger.debug(f'Sending message: {msg}')
+
+                await websocket.send(msg)
+
+                # logger.debug('Msg sent')
+                # await asyncio.sleep(2)
+
+                overnight_msg = await recv_msg(websocket, "overnight")
+
+                # logger.debug(f'Msg received: {overnight_msg}')
+
+                if overnight_msg["sideID"] == side:
+                    break
+                else:
+                    await asyncio.sleep(5)
+
+            start_entity_id = settings[
+                f'{"right" if side == "R" else "left"}_side_start_helper'
+            ]
+            sleep_entity_id = settings[
+                f'{"right" if side == "R" else "left"}_side_sleep_helper'
+            ]
+            wake_entity_id = settings[
+                f'{"right" if side == "R" else "left"}_side_wake_helper'
+            ]
+
+            start_setting = convert_from_ha_to_topper(
+                await get_ha_number_setting(start_entity_id)
+            )
+
+            sleep_setting = convert_from_ha_to_topper(
+                await get_ha_number_setting(sleep_entity_id)
+            )
+
+            wake_setting = convert_from_ha_to_topper(
+                await get_ha_number_setting(wake_entity_id)
+            )
+
+            overnight_msg["L1"] = start_setting
+            overnight_msg["L2"] = sleep_setting
+            overnight_msg["L3"] = wake_setting
+
+            overnight_msg["TxId"] = get_new_tx_id()
+
+            msg = json.dumps(overnight_msg, separators=(",", ":"))
+
+            await websocket.send(msg)
+            await asyncio.sleep(1)
+
+
+async def post_ha_number_setting(entity_id: str, value: int) -> bool:
+    set_value_url = f"{base_url}/services/input_number/set_value"
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+
+    data = {"entity_id": entity_id, "value": value}
+
+    set_r = post(url=set_value_url, headers=headers, json=data)
+
+    if set_r.ok:
+        return True
+    else:
+        return False
+
+
+async def get_ha_number_setting(entity_id: str) -> bool:
+    get_value_url = f"{base_url}/states/{entity_id}"
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+
+    get_r = get(url=get_value_url, headers=headers)
+
+    if get_r.ok:
+        r_json = get_r.json()
+        return int(float(r_json["state"]))
+    else:
+        return None
+
+
 def check_msg(m, m_type=None):
     if m_type is None:
         return True
@@ -675,6 +871,7 @@ async def check_switch_for_change(logger_prepend: str, switch_entity_id: str, st
                     ws, status_obj, status_obj.last_mode_on
                 )
             )
+            return True
 
     elif (
         status_obj.last_mode_on and not switch_on
@@ -695,6 +892,9 @@ async def check_switch_for_change(logger_prepend: str, switch_entity_id: str, st
                     ws, status_obj, status_obj.last_mode_on
                 )
             )
+            return True
+
+    return False
 
 
 async def snuggler_update():
@@ -705,6 +905,7 @@ async def snuggler_update():
     while True:
 
         try:
+
             async with websockets.connect(base_url.replace('http://', 'ws://') + '/websocket') as ha_ws:
 
                 connected_to_ws = False
@@ -730,20 +931,26 @@ async def snuggler_update():
                     logger.critical(f"Unable to authenticate to HA: {auth_response}")
                     raise ConnectionError(f"Unabled to authenticate to HA: {auth_response}")
 
-                subscribe_events_data = {
-                    'id': get_new_tx_id(),
-                    'type': 'subscribe_events',
-                    'event_type': 'state_changed'
-                }
-                await ha_ws.send(json.dumps(subscribe_events_data))
-                sub_resp = await ha_ws.recv()
-                sub_resp_data = json.loads(sub_resp)
-                if not sub_resp_data['success']:
-                    logger.critical(f"Unable to subscribe to state_changed events: {sub_resp}")
-                    raise ConnectionError(f"Unable to subscribe to state_changed events: {sub_resp}")
+                for event_type in ["state_changed"]:
+                    subscribe_events_data = {
+                        "id": get_new_tx_id(),
+                        "type": "subscribe_events",
+                        "event_type": event_type,
+                    }
+                    await ha_ws.send(json.dumps(subscribe_events_data))
+                    sub_resp = await ha_ws.recv()
+                    sub_resp_data = json.loads(sub_resp)
+                    if not sub_resp_data["success"]:
+                        logger.critical(
+                            f"Unable to subscribe to {event_type} events: {sub_resp}"
+                        )
+                        raise ConnectionError(
+                            f"Unable to subscribe to {event_type} events: {sub_resp}"
+                        )
 
                 st = time() - 999999
                 while ha_ws.open:
+                    action_taken = False
 
                     msg = await ha_ws.recv()
                     msg_json = json.loads(msg)
@@ -769,6 +976,42 @@ async def snuggler_update():
 
                     elif not same_state and entity_id == settings["heat_up_topper_helper"]:
                         logger.info('Heat up topper status changed')
+
+                    elif (
+                        not same_state
+                        and entity_id == settings["left_side_start_helper"]
+                    ):
+                        logger.info("Left side start helper changed")
+
+                    elif (
+                        not same_state
+                        and entity_id == settings["right_side_start_helper"]
+                    ):
+                        logger.info("Right side start helper changed")
+
+                    elif (
+                        not same_state
+                        and entity_id == settings["left_side_sleep_helper"]
+                    ):
+                        logger.info("Left side sleep helper changed")
+
+                    elif (
+                        not same_state
+                        and entity_id == settings["right_side_sleep_helper"]
+                    ):
+                        logger.info("Right side sleep helper changed")
+
+                    elif (
+                        not same_state
+                        and entity_id == settings["left_side_wake_helper"]
+                    ):
+                        logger.info("Left side wake helper changed")
+
+                    elif (
+                        not same_state
+                        and entity_id == settings["right_side_wake_helper"]
+                    ):
+                        logger.info("Right side wake helper changed")
 
                     elif not same_state and entity_id == settings["weekday_wake_up_time_helper"]:
                         logger.info('Weekday wake up time changed')
@@ -860,6 +1103,7 @@ async def snuggler_update():
                             reset_schedule = True
 
                     if need_to_update:
+                        action_taken = True
                         async with websockets.connect(snuggler_url) as ws:
                             await asyncio.gather(
                                 change_end_time(
@@ -873,6 +1117,9 @@ async def snuggler_update():
 
                     else:
                         logger.debug("Wakeup times have not changed, not updating")
+
+                    # setting override switch on
+                    activity_level_override_switch_on = False
 
                     # check nap time now
                     switch_type = 'naptime'
@@ -890,16 +1137,20 @@ async def snuggler_update():
                         if s.last_mode_on == True:
                             logger.info(f'{s.switch_type.capitalize()} is on, not checking {switch_type}')
                             something_else_on = True
+                            activity_level_override_switch_on = True
 
                     if not something_else_on:
                         status_obj = [x for x in status_obj_list if x.switch_type == switch_type][0]
 
-                        await check_switch_for_change(
+                        status = await check_switch_for_change(
                             logger_prepend=logger_prepend,
                             switch_entity_id=switch_entity_id,
                             status_obj=status_obj,
-                            delay_off_secs=delay_off_secs
+                            delay_off_secs=delay_off_secs,
                         )
+
+                        if status is True:
+                            action_taken = True
 
                     # check play time now
                     switch_type = 'playtime'
@@ -917,16 +1168,20 @@ async def snuggler_update():
                         if s.last_mode_on == True:
                             logger.info(f'{s.switch_type.capitalize()} is on, not checking {switch_type}')
                             something_else_on = True
+                            activity_level_override_switch_on = True
 
                     if not something_else_on:
                         status_obj = [x for x in status_obj_list if x.switch_type == switch_type][0]
 
-                        await check_switch_for_change(
+                        status = await check_switch_for_change(
                             logger_prepend=logger_prepend,
                             switch_entity_id=switch_entity_id,
                             status_obj=status_obj,
-                            delay_off_secs=delay_off_secs
+                            delay_off_secs=delay_off_secs,
                         )
+
+                        if status is True:
+                            action_taken = True
 
                     # check cool off topper
                     switch_type = 'cool_off'
@@ -944,16 +1199,20 @@ async def snuggler_update():
                         if s.last_mode_on == True:
                             logger.info(f'{s.switch_type.capitalize()} is on, not checking {switch_type}')
                             something_else_on = True
+                            activity_level_override_switch_on = True
 
                     if not something_else_on:
                         status_obj = [x for x in status_obj_list if x.switch_type == switch_type][0]
 
-                        await check_switch_for_change(
+                        status = await check_switch_for_change(
                             logger_prepend=logger_prepend,
                             switch_entity_id=switch_entity_id,
                             status_obj=status_obj,
-                            delay_off_secs=delay_off_secs
+                            delay_off_secs=delay_off_secs,
                         )
+
+                        if status is True:
+                            action_taken = True
 
                     # check heat up topper
                     switch_type = 'heat_up'
@@ -975,12 +1234,38 @@ async def snuggler_update():
                     if not something_else_on:
                         status_obj = [x for x in status_obj_list if x.switch_type == switch_type][0]
 
-                        await check_switch_for_change(
+                        status = await check_switch_for_change(
                             logger_prepend=logger_prepend,
                             switch_entity_id=switch_entity_id,
                             status_obj=status_obj,
-                            delay_off_secs=delay_off_secs
+                            delay_off_secs=delay_off_secs,
                         )
+                        if status is True:
+                            action_taken = True
+
+                    # check for level change
+                    if entity_id in all_topper_level_helper_ids:
+                        if activity_level_override_switch_on:
+                            logger.warning(
+                                "Some activity override switch is on, not updating levels in topper"
+                            )
+
+                        else:
+                            logger.info(
+                                f"{entity_id} changed, sleeping a few seconds to debounce and update settings"
+                            )
+                            await asyncio.sleep(10)
+
+                            async with websockets.connect(snuggler_url) as ws:
+                                await asyncio.gather(
+                                    update_levels(websocket=ws, update_topper=True)
+                                )
+
+                    if not action_taken and not activity_level_override_switch_on:
+                        async with websockets.connect(snuggler_url) as ws:
+                            await asyncio.gather(
+                                update_levels(websocket=ws, update_ha=True)
+                            )
 
                     if now().minute == 0:
                         logger.info(
@@ -999,7 +1284,6 @@ async def snuggler_update():
             logger.critical(traceback.print_exc())
             logger.critical(f"Exception: {type(e)}: {e}")
             await asyncio.sleep(60)
-
 
 if __name__ == "__main__":
     asyncio.run(snuggler_update())
