@@ -690,17 +690,20 @@ async def update_levels(
 
             if start_setting != overnight_msg["L1"]:
                 logger.info(
-                    f'Start setting changed for {side} side from {overnight_msg["L1"]} to {start_setting}'
+                    f'Start setting changed for {side} side from {convert_from_topper_to_ha(overnight_msg["L1"])} '
+                    f"to {convert_from_topper_to_ha(start_setting)}"
                 )
 
             if sleep_setting != overnight_msg["L2"]:
                 logger.info(
-                    f'Sleep setting changed for {side} side from {overnight_msg["L2"]} to {sleep_setting}'
+                    f'Sleep setting changed for {side} side from {convert_from_topper_to_ha(overnight_msg["L2"])} '
+                    f"to {convert_from_topper_to_ha(sleep_setting)}"
                 )
 
             if wake_setting != overnight_msg["L3"]:
                 logger.info(
-                    f'Wake setting changed for {side} side from {overnight_msg["L3"]} to {wake_setting}'
+                    f'Wake setting changed for {side} side from {convert_from_topper_to_ha(overnight_msg["L3"])} '
+                    f"to {convert_from_topper_to_ha(wake_setting)}"
                 )
 
             overnight_msg["L1"] = start_setting
