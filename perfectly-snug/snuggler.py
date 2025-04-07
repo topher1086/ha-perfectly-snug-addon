@@ -867,11 +867,8 @@ async def check_switch_for_change(logger_prepend: str, switch_entity_id: str, st
 
         async with websockets.connect(snuggler_url) as ws:
             await asyncio.gather(
-                mode_changed_update_topper(
-                    ws, status_obj, status_obj.last_mode_on
-                )
+                mode_changed_update_topper(ws, status_obj, status_obj.last_mode_on)
             )
-            return True
 
     elif (
         status_obj.last_mode_on and not switch_on
@@ -888,14 +885,11 @@ async def check_switch_for_change(logger_prepend: str, switch_entity_id: str, st
 
         async with websockets.connect(snuggler_url) as ws:
             await asyncio.gather(
-                mode_changed_update_topper(
-                    ws, status_obj, status_obj.last_mode_on
-                )
+                mode_changed_update_topper(ws, status_obj, status_obj.last_mode_on)
             )
-            return True
 
-    return False
-
+    # return True if the switch is currently on, False if not
+    return switch_on
 
 async def snuggler_update():
     reset_start_time_sec_window = int(
@@ -1120,6 +1114,7 @@ async def snuggler_update():
 
                     # setting override switch on
                     activity_level_override_switch_on = False
+                    activity_level_override_switch_name = ""
 
                     # check nap time now
                     switch_type = 'naptime'
@@ -1137,20 +1132,21 @@ async def snuggler_update():
                         if s.last_mode_on == True:
                             logger.info(f'{s.switch_type.capitalize()} is on, not checking {switch_type}')
                             something_else_on = True
-                            activity_level_override_switch_on = True
 
                     if not something_else_on:
                         status_obj = [x for x in status_obj_list if x.switch_type == switch_type][0]
 
-                        status = await check_switch_for_change(
+                        switch_on = await check_switch_for_change(
                             logger_prepend=logger_prepend,
                             switch_entity_id=switch_entity_id,
                             status_obj=status_obj,
                             delay_off_secs=delay_off_secs,
                         )
 
-                        if status is True:
+                        if switch_on is True:
                             action_taken = True
+                            activity_level_override_switch_on = True
+                            activity_level_override_switch_name = switch_type
 
                     # check play time now
                     switch_type = 'playtime'
@@ -1168,20 +1164,20 @@ async def snuggler_update():
                         if s.last_mode_on == True:
                             logger.info(f'{s.switch_type.capitalize()} is on, not checking {switch_type}')
                             something_else_on = True
-                            activity_level_override_switch_on = True
-
                     if not something_else_on:
                         status_obj = [x for x in status_obj_list if x.switch_type == switch_type][0]
 
-                        status = await check_switch_for_change(
+                        switch_on = await check_switch_for_change(
                             logger_prepend=logger_prepend,
                             switch_entity_id=switch_entity_id,
                             status_obj=status_obj,
                             delay_off_secs=delay_off_secs,
                         )
 
-                        if status is True:
+                        if switch_on is True:
                             action_taken = True
+                            activity_level_override_switch_on = True
+                            activity_level_override_switch_name = switch_type
 
                     # check cool off topper
                     switch_type = 'cool_off'
@@ -1199,20 +1195,21 @@ async def snuggler_update():
                         if s.last_mode_on == True:
                             logger.info(f'{s.switch_type.capitalize()} is on, not checking {switch_type}')
                             something_else_on = True
-                            activity_level_override_switch_on = True
 
                     if not something_else_on:
                         status_obj = [x for x in status_obj_list if x.switch_type == switch_type][0]
 
-                        status = await check_switch_for_change(
+                        switch_on = await check_switch_for_change(
                             logger_prepend=logger_prepend,
                             switch_entity_id=switch_entity_id,
                             status_obj=status_obj,
                             delay_off_secs=delay_off_secs,
                         )
 
-                        if status is True:
+                        if switch_on is True:
                             action_taken = True
+                            activity_level_override_switch_on = True
+                            activity_level_override_switch_name = switch_type
 
                     # check heat up topper
                     switch_type = 'heat_up'
@@ -1234,20 +1231,23 @@ async def snuggler_update():
                     if not something_else_on:
                         status_obj = [x for x in status_obj_list if x.switch_type == switch_type][0]
 
-                        status = await check_switch_for_change(
+                        switch_on = await check_switch_for_change(
                             logger_prepend=logger_prepend,
                             switch_entity_id=switch_entity_id,
                             status_obj=status_obj,
                             delay_off_secs=delay_off_secs,
                         )
-                        if status is True:
+                        if switch_on is True:
                             action_taken = True
+                            activity_level_override_switch_on = True
+                            activity_level_override_switch_name = switch_type
 
                     # check for level change
                     if entity_id in all_topper_level_helper_ids:
                         if activity_level_override_switch_on:
                             logger.warning(
-                                "Some activity override switch is on, not updating levels in topper"
+                                f"{activity_level_override_switch_name} activity override switch is on, "
+                                "not updating levels in topper"
                             )
 
                         else:
