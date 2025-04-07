@@ -34,7 +34,7 @@ try:
 except FileNotFoundError:
     test_config = {}
 
-update_interval_secs = settings['update_interval_secs']
+update_interval_secs = settings["update_interval_secs"]
 
 # reset the logging level from DEBUG by default
 logger.remove()
@@ -65,9 +65,11 @@ all_topper_level_helper_ids = [
     settings["right_side_wake_helper"],
 ]
 
+
 def now():
     utc_now = datetime.now(timezone.utc)
     return utc_now.astimezone(pytz.timezone(tz))
+
 
 def now_naive():
     utc_now = datetime.now(timezone.utc)
@@ -121,13 +123,7 @@ class StatusHolder:
             self.run_level = int(settings["heat_up_run_level"]) + 10
 
 
-status_switch_types = [
-    'bedtime',
-    'naptime',
-    'playtime',
-    'cool_off',
-    'heat_up'
-]
+status_switch_types = ["bedtime", "naptime", "playtime", "cool_off", "heat_up"]
 
 status_obj_list = [StatusHolder(switch_type=x) for x in status_switch_types]
 
@@ -517,7 +513,7 @@ async def mode_changed_update_topper(
             logger.info(f"{side} side -- Sending message to update schedule time")
 
             t1_time = 1
-            if status_obj.switch_type in ['cool_off', 'heat_up']:
+            if status_obj.switch_type in ["cool_off", "heat_up"]:
                 t1_time = 90
 
             schedule_msg["T1"] = t1_time
@@ -574,13 +570,13 @@ async def update_levels(
     update_ha: bool = False,
     update_topper: bool = False,
 ):
-    if update_ha:
-        logger.info(f"Updating topper settings in Home Assistant")
-    elif update_topper:
-        logger.info(f"Updating topper with settings in Home Assistant")
-    else:
-        logger.critical("No update direction set!")
-        return
+    # if update_ha:
+    #     logger.info(f"Updating topper settings in Home Assistant")
+    # elif update_topper:
+    #     logger.info(f"Updating topper with settings in Home Assistant")
+    # else:
+    #     logger.critical("No update direction set!")
+    #     return
 
     logger.debug(f"Sending: {request_side}")
     await websocket.send(request_side)
@@ -590,7 +586,7 @@ async def update_levels(
 
     if update_ha:
         for side in ["R", "L"]:
-            logger.info(f"{side} side -- Getting settings from topper")
+            logger.debug(f"{side} side -- Getting settings from topper")
 
             # get the current settings
             for _ in range(10):
@@ -642,7 +638,7 @@ async def update_levels(
 
     if update_topper:
         for side in ["R", "L"]:
-            logger.info(f"{side} side -- Getting settings from topper")
+            logger.debug(f"{side} side -- Getting settings from topper")
 
             # get the current settings
             for _ in range(10):
@@ -691,6 +687,21 @@ async def update_levels(
             wake_setting = convert_from_ha_to_topper(
                 await get_ha_number_setting(wake_entity_id)
             )
+
+            if start_setting != overnight_msg["L1"]:
+                logger.info(
+                    f'Start setting changed for {side} side from {overnight_msg["L1"]} to {start_setting}'
+                )
+
+            if sleep_setting != overnight_msg["L2"]:
+                logger.info(
+                    f'Sleep setting changed for {side} side from {overnight_msg["L2"]} to {sleep_setting}'
+                )
+
+            if wake_setting != overnight_msg["L3"]:
+                logger.info(
+                    f'Wake setting changed for {side} side from {overnight_msg["L3"]} to {wake_setting}'
+                )
 
             overnight_msg["L1"] = start_setting
             overnight_msg["L2"] = sleep_setting
@@ -852,7 +863,12 @@ async def get_switch_status(entity_id):
     return r.json()
 
 
-async def check_switch_for_change(logger_prepend: str, switch_entity_id: str, status_obj: StatusHolder, delay_off_secs: int):
+async def check_switch_for_change(
+    logger_prepend: str,
+    switch_entity_id: str,
+    status_obj: StatusHolder,
+    delay_off_secs: int,
+):
     switch_status = await get_switch_status(switch_entity_id)
 
     switch_on = switch_status["state"] == "on"
@@ -870,17 +886,22 @@ async def check_switch_for_change(logger_prepend: str, switch_entity_id: str, st
                 mode_changed_update_topper(ws, status_obj, status_obj.last_mode_on)
             )
 
-    elif (
-        status_obj.last_mode_on and not switch_on
-    ):
+    elif status_obj.last_mode_on and not switch_on:
         logger.info(
             f"{logger_prepend} has been turned off and delay over, reverting topper settings and stopping it"
         )
         status_obj.last_mode_on = switch_on
 
-        sleep_time = max(parse_dt(switch_status["last_changed"]).timestamp() + delay_off_secs - time(), 0)
+        sleep_time = max(
+            parse_dt(switch_status["last_changed"]).timestamp()
+            + delay_off_secs
+            - time(),
+            0,
+        )
         if sleep_time > 0:
-            logger.info(f'{logger_prepend} turned off, but need to delay {sleep_time:,.2f} seconds before changing topper')
+            logger.info(
+                f"{logger_prepend} turned off, but need to delay {sleep_time:,.2f} seconds before changing topper"
+            )
             await asyncio.sleep(sleep_time)
 
         async with websockets.connect(snuggler_url) as ws:
@@ -891,6 +912,7 @@ async def check_switch_for_change(logger_prepend: str, switch_entity_id: str, st
     # return True if the switch is currently on, False if not
     return switch_on
 
+
 async def snuggler_update():
     reset_start_time_sec_window = int(
         (update_interval_secs * 3) + (update_interval_secs / 2)
@@ -900,14 +922,16 @@ async def snuggler_update():
 
         try:
 
-            async with websockets.connect(base_url.replace('http://', 'ws://') + '/websocket') as ha_ws:
+            async with websockets.connect(
+                base_url.replace("http://", "ws://") + "/websocket"
+            ) as ha_ws:
 
                 connected_to_ws = False
                 # connect and receive the first message
                 connect_response = await ha_ws.recv()
 
                 auth_response = None
-                if json.loads(connect_response)['type'] == 'auth_required':
+                if json.loads(connect_response)["type"] == "auth_required":
 
                     # Send authentication message
                     auth_data = json.dumps({"type": "auth", "access_token": token})
@@ -917,13 +941,15 @@ async def snuggler_update():
                     auth_response = await ha_ws.recv()
                     json_auth_response = json.loads(auth_response)
 
-                    if json_auth_response['type'] == 'auth_ok':
+                    if json_auth_response["type"] == "auth_ok":
                         connected_to_ws = True
                         logger.info("Connected to Home Assistant Websocket API")
 
                 if not connected_to_ws:
                     logger.critical(f"Unable to authenticate to HA: {auth_response}")
-                    raise ConnectionError(f"Unabled to authenticate to HA: {auth_response}")
+                    raise ConnectionError(
+                        f"Unabled to authenticate to HA: {auth_response}"
+                    )
 
                 for event_type in ["state_changed"]:
                     subscribe_events_data = {
@@ -950,26 +976,40 @@ async def snuggler_update():
                     msg_json = json.loads(msg)
 
                     try:
-                        same_state = msg_json['event']['data']['old_state']['state'] == msg_json['event']['data']['new_state']['state']
+                        same_state = (
+                            msg_json["event"]["data"]["old_state"]["state"]
+                            == msg_json["event"]["data"]["new_state"]["state"]
+                        )
                     except TypeError:
                         continue
 
-                    entity_id = msg_json['event']['data']['entity_id']
+                    entity_id = msg_json["event"]["data"]["entity_id"]
 
                     if not same_state and entity_id == settings["bedtime_mode_helper"]:
-                        logger.info('Bedtime mode status changed')
+                        logger.info("Bedtime mode status changed")
 
-                    elif not same_state and entity_id == settings["play_time_mode_helper"]:
-                        logger.info('Playtime mode status changed')
+                    elif (
+                        not same_state
+                        and entity_id == settings["play_time_mode_helper"]
+                    ):
+                        logger.info("Playtime mode status changed")
 
-                    elif not same_state and entity_id == settings["nap_time_mode_helper"]:
-                        logger.info('Naptime mode status changed')
+                    elif (
+                        not same_state and entity_id == settings["nap_time_mode_helper"]
+                    ):
+                        logger.info("Naptime mode status changed")
 
-                    elif not same_state and entity_id == settings["cool_off_topper_helper"]:
-                        logger.info('Cool off topper status changed')
+                    elif (
+                        not same_state
+                        and entity_id == settings["cool_off_topper_helper"]
+                    ):
+                        logger.info("Cool off topper status changed")
 
-                    elif not same_state and entity_id == settings["heat_up_topper_helper"]:
-                        logger.info('Heat up topper status changed')
+                    elif (
+                        not same_state
+                        and entity_id == settings["heat_up_topper_helper"]
+                    ):
+                        logger.info("Heat up topper status changed")
 
                     elif (
                         not same_state
@@ -1007,21 +1047,31 @@ async def snuggler_update():
                     ):
                         logger.info("Right side wake helper changed")
 
-                    elif not same_state and entity_id == settings["weekday_wake_up_time_helper"]:
-                        logger.info('Weekday wake up time changed')
+                    elif (
+                        not same_state
+                        and entity_id == settings["weekday_wake_up_time_helper"]
+                    ):
+                        logger.info("Weekday wake up time changed")
                         # wait for a bit before processing in case we weren't done changing the time
                         await asyncio.sleep(15)
 
-                    elif not same_state and entity_id == settings["weekend_wake_up_time_helper"]:
-                        logger.info('Weekend wake up time changed')
+                    elif (
+                        not same_state
+                        and entity_id == settings["weekend_wake_up_time_helper"]
+                    ):
+                        logger.info("Weekend wake up time changed")
                         # wait for a bit before processing in case we weren't done changing the time
                         await asyncio.sleep(15)
 
                     elif st + update_interval_secs < time():
-                        logger.info(f'Update interval of {update_interval_secs:,} seconds passed, checking status')
+                        logger.info(
+                            f"Update interval of {update_interval_secs:,} seconds passed, checking status"
+                        )
 
                     elif not same_state:
-                        logger.debug(f"State of entity changed: {entity_id} -- {msg_json['event']['data']['old_state']['state']} -> {msg_json['event']['data']['new_state']['state']}")
+                        logger.debug(
+                            f"State of entity changed: {entity_id} -- {msg_json['event']['data']['old_state']['state']} -> {msg_json['event']['data']['new_state']['state']}"
+                        )
                         continue
                     else:
                         # just an attribute change
@@ -1029,12 +1079,16 @@ async def snuggler_update():
 
                     logger.debug("Checking bedtime status...")
 
-                    bedtime_status = [x for x in status_obj_list if x.switch_type == 'bedtime'][0]
+                    bedtime_status = [
+                        x for x in status_obj_list if x.switch_type == "bedtime"
+                    ][0]
 
                     last_weekday_time = bedtime_status.last_weekday_time
                     last_weekend_time = bedtime_status.last_weekend_time
 
-                    bedtime_mode = await get_switch_status(settings["bedtime_mode_helper"])
+                    bedtime_mode = await get_switch_status(
+                        settings["bedtime_mode_helper"]
+                    )
 
                     bedtime_mode_triggered = (
                         now() - parse_dt(bedtime_mode["last_changed"])
@@ -1056,7 +1110,8 @@ async def snuggler_update():
 
                     if (
                         last_weekday_time.hour != wake_up_time_dict["weekday"].hour
-                        or last_weekday_time.minute != wake_up_time_dict["weekday"].minute
+                        or last_weekday_time.minute
+                        != wake_up_time_dict["weekday"].minute
                     ):  # noqa: E501
                         logger.info(
                             f"Weekday wakeup time has been changed: {last_weekday_time} to {wake_up_time_dict['weekday']}"
@@ -1065,7 +1120,8 @@ async def snuggler_update():
 
                     elif (
                         last_weekend_time.hour != wake_up_time_dict["weekend"].hour
-                        or last_weekend_time.minute != wake_up_time_dict["weekend"].minute
+                        or last_weekend_time.minute
+                        != wake_up_time_dict["weekend"].minute
                     ):  # noqa: E501
                         logger.info(
                             f"Weekend wakeup time has been changed: {last_weekend_time} to {wake_up_time_dict['weekend']}"
@@ -1117,8 +1173,8 @@ async def snuggler_update():
                     activity_level_override_switch_name = ""
 
                     # check nap time now
-                    switch_type = 'naptime'
-                    logger_prepend = 'Nap time mode'
+                    switch_type = "naptime"
+                    logger_prepend = "Nap time mode"
                     switch_entity_id = settings["nap_time_mode_helper"]
 
                     delay_off_secs = 100
@@ -1130,11 +1186,15 @@ async def snuggler_update():
                         if s.switch_type == switch_type:
                             continue
                         if s.last_mode_on == True:
-                            logger.info(f'{s.switch_type.capitalize()} is on, not checking {switch_type}')
+                            logger.info(
+                                f"{s.switch_type.capitalize()} is on, not checking {switch_type}"
+                            )
                             something_else_on = True
 
                     if not something_else_on:
-                        status_obj = [x for x in status_obj_list if x.switch_type == switch_type][0]
+                        status_obj = [
+                            x for x in status_obj_list if x.switch_type == switch_type
+                        ][0]
 
                         switch_on = await check_switch_for_change(
                             logger_prepend=logger_prepend,
@@ -1149,8 +1209,8 @@ async def snuggler_update():
                             activity_level_override_switch_name = switch_type
 
                     # check play time now
-                    switch_type = 'playtime'
-                    logger_prepend = 'Play time mode'
+                    switch_type = "playtime"
+                    logger_prepend = "Play time mode"
                     switch_entity_id = settings["play_time_mode_helper"]
 
                     delay_off_secs = 100
@@ -1162,10 +1222,14 @@ async def snuggler_update():
                         if s.switch_type == switch_type:
                             continue
                         if s.last_mode_on == True:
-                            logger.info(f'{s.switch_type.capitalize()} is on, not checking {switch_type}')
+                            logger.info(
+                                f"{s.switch_type.capitalize()} is on, not checking {switch_type}"
+                            )
                             something_else_on = True
                     if not something_else_on:
-                        status_obj = [x for x in status_obj_list if x.switch_type == switch_type][0]
+                        status_obj = [
+                            x for x in status_obj_list if x.switch_type == switch_type
+                        ][0]
 
                         switch_on = await check_switch_for_change(
                             logger_prepend=logger_prepend,
@@ -1180,8 +1244,8 @@ async def snuggler_update():
                             activity_level_override_switch_name = switch_type
 
                     # check cool off topper
-                    switch_type = 'cool_off'
-                    logger_prepend = 'Cool off topper'
+                    switch_type = "cool_off"
+                    logger_prepend = "Cool off topper"
                     switch_entity_id = settings["cool_off_topper_helper"]
 
                     delay_off_secs = 0
@@ -1193,11 +1257,15 @@ async def snuggler_update():
                         if s.switch_type == switch_type:
                             continue
                         if s.last_mode_on == True:
-                            logger.info(f'{s.switch_type.capitalize()} is on, not checking {switch_type}')
+                            logger.info(
+                                f"{s.switch_type.capitalize()} is on, not checking {switch_type}"
+                            )
                             something_else_on = True
 
                     if not something_else_on:
-                        status_obj = [x for x in status_obj_list if x.switch_type == switch_type][0]
+                        status_obj = [
+                            x for x in status_obj_list if x.switch_type == switch_type
+                        ][0]
 
                         switch_on = await check_switch_for_change(
                             logger_prepend=logger_prepend,
@@ -1212,8 +1280,8 @@ async def snuggler_update():
                             activity_level_override_switch_name = switch_type
 
                     # check heat up topper
-                    switch_type = 'heat_up'
-                    logger_prepend = 'Heat up topper'
+                    switch_type = "heat_up"
+                    logger_prepend = "Heat up topper"
                     switch_entity_id = settings["heat_up_topper_helper"]
 
                     delay_off_secs = 0
@@ -1225,11 +1293,15 @@ async def snuggler_update():
                         if s.switch_type == switch_type:
                             continue
                         if s.last_mode_on == True:
-                            logger.info(f'{s.switch_type.capitalize()} is on, not checking {switch_type}')
+                            logger.info(
+                                f"{s.switch_type.capitalize()} is on, not checking {switch_type}"
+                            )
                             something_else_on = True
 
                     if not something_else_on:
-                        status_obj = [x for x in status_obj_list if x.switch_type == switch_type][0]
+                        status_obj = [
+                            x for x in status_obj_list if x.switch_type == switch_type
+                        ][0]
 
                         switch_on = await check_switch_for_change(
                             logger_prepend=logger_prepend,
@@ -1285,6 +1357,7 @@ async def snuggler_update():
             logger.critical(traceback.print_exc())
             logger.critical(f"Exception: {type(e)}: {e}")
             await asyncio.sleep(60)
+
 
 if __name__ == "__main__":
     asyncio.run(snuggler_update())
